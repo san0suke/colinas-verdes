@@ -137,7 +137,8 @@
   .credit { color: var(--muted); font-size: 12px; }
 
   /* ---------- Portão de tela cheia (celular) ---------- */
-  #fsgate { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  #fsgate { position: relative; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  #gate-leave { position: absolute; right: max(16px, env(safe-area-inset-right)); top: max(16px, env(safe-area-inset-top)); }
   .btn.big { display: inline-flex; align-items: center; gap: 12px; font-size: 20px; padding: 18px 28px; border-radius: 16px; }
   .btn.big svg { width: 28px; height: 28px; flex: none; }
 
@@ -238,6 +239,7 @@
 </section>
 
 <section id="fsgate" hidden>
+  <button type="button" id="gate-leave" class="btn ghost small">Sair da sala</button>
   <button type="button" id="fs-enter" class="btn big">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/>
@@ -288,11 +290,11 @@
   </div>
 </section>
 
-<script src="config.js?v=07a6b8d"></script>
-<script src="level.js?v=07a6b8d"></script>
-<script src="game.js?v=07a6b8d"></script>
-<script src="music.js?v=07a6b8d"></script>
-<script src="lobby.js?v=07a6b8d"></script>
-<script src="touch.js?v=07a6b8d"></script>
+<script src="config.js?v=188e535"></script>
+<script src="level.js?v=188e535"></script>
+<script src="game.js?v=188e535"></script>
+<script src="music.js?v=188e535"></script>
+<script src="lobby.js?v=188e535"></script>
+<script src="touch.js?v=188e535"></script>
 </body>
 </html>

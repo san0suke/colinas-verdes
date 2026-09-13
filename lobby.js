@@ -313,6 +313,7 @@
   });
   els.solo.addEventListener('click', () => enterRoom(null));
   els.leave.addEventListener('click', leaveRoom);
+  $('gate-leave').addEventListener('click', leaveRoom);
 
   // ---------- boot ----------
   (async () => {
