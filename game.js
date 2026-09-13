@@ -75,7 +75,7 @@ const Game = (() => {
   const collected = new Set();            // "r,c" das moedas pegas
   const dead = new Set();                 // índices dos inimigos derrotados
   let springs = new Map();                // "r,c" → instante em que a mola foi ativada
-  const player = { x: 0, y: 0, vx: 0, vy: 0, facing: 1, onGround: false, coyote: 0, jumpBuffer: 0, bouncing: false, animTime: 0, color: 'green', nick: '', coins: 0, invuln: 0, hitUntil: 0, lossUntil: 0, lossText: '', finished: false };
+  const player = { x: 0, y: 0, vx: 0, vy: 0, facing: 1, onGround: false, coyote: 0, jumpBuffer: 0, bouncing: false, animTime: 0, color: 'green', nick: '', coins: 0, invuln: 0, hitUntil: 0, lossUntil: 0, lossText: '', popUntil: 0, popText: '', finished: false };
   const camera = { x: 0, y: 0 };
   const remote = new Map();
   let running = false, raf = 0, last = 0, frozen = false;
@@ -197,6 +197,7 @@ const Game = (() => {
     player.invuln = Math.max(0, player.invuln - dt);
     player.hitUntil = Math.max(0, player.hitUntil - dt);
     player.lossUntil = Math.max(0, player.lossUntil - dt);
+    player.popUntil = Math.max(0, player.popUntil - dt);
     const prevY = player.y;
 
     // --- horizontal ---
@@ -274,7 +275,7 @@ const Game = (() => {
       it.t += dt; it.vy += GRAVITY * 0.6 * dt; it.y += it.vy * dt;
       const r = Math.floor((it.y - 1) / TILE), c = Math.floor(it.x / TILE), under = cellAt(r, c);
       if (it.vy > 0 && under && (under.k === 'solid' || under.k === 'oneway')) { it.y = r * TILE; it.vy = 0; }
-      if (Math.abs(it.x - player.x) < HW + 24 && it.y > player.y - BH - 8 && it.y - 56 < player.y) { it.taken = true; player.dashes += STAR_DASHES; play('finish'); }
+      if (Math.abs(it.x - player.x) < HW + 24 && it.y > player.y - BH - 8 && it.y - 56 < player.y) { it.taken = true; player.dashes += STAR_DASHES; player.popText = `+${STAR_DASHES} 💨 dash`; player.popUntil = 1.6; play('finish'); }
     }
     items = items.filter((it) => !it.taken && it.y < level.height + 200);
     for (const p of particles) { p.t -= dt; p.vy += GRAVITY * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
@@ -398,6 +399,15 @@ const Game = (() => {
     const anim = player.hitUntil > 0 ? 'h' : (!player.onGround || player.dashTime > 0) ? 'j' : player.vx !== 0 ? 'w' : 'i';
     const blink = player.invuln > 0 && Math.floor(player.animTime * 12) % 2 === 0;
     drawCharacter(player.x, player.y, player.facing, charSprite(player.color, anim, player.animTime), player.nick, blink ? 0.35 : 1);
+    if (player.popUntil > 0 && player.popText) {
+      const sx = Math.round(player.x - camera.x), sy = Math.round(player.y - camera.y) - 150 - Math.round((1.6 - player.popUntil) * 45);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, player.popUntil * 1.5);
+      ctx.font = '700 26px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 6; ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(10,40,80,.75)'; ctx.fillStyle = '#8fdcff';
+      ctx.strokeText(player.popText, sx, sy); ctx.fillText(player.popText, sx, sy);
+      ctx.restore();
+    }
     if (player.lossUntil > 0 && player.lossText) {
       const sx = Math.round(player.x - camera.x), sy = Math.round(player.y - camera.y) - 130 - Math.round((1.2 - player.lossUntil) * 40);
       ctx.save();
@@ -438,7 +448,7 @@ const Game = (() => {
     clockOffset = opts.serverNow - Date.now();
     startAt = opts.startAt;
     hooks = { onState: opts.onState, onFinish: opts.onFinish };
-    Object.assign(player, { x: level.spawnX, y: level.spawnY, vx: 0, vy: 0, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, dashes: DASH_CHARGES, dashTime: 0, dashDir: 1, coins: 0, invuln: 0, hitUntil: 0, lossUntil: 0, lossText: '', finished: false, color: COLORS.includes(opts.color) ? opts.color : 'green', nick: opts.nick || '' });
+    Object.assign(player, { x: level.spawnX, y: level.spawnY, vx: 0, vy: 0, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, dashes: DASH_CHARGES, dashTime: 0, dashDir: 1, coins: 0, invuln: 0, hitUntil: 0, lossUntil: 0, lossText: '', popUntil: 0, popText: '', finished: false, color: COLORS.includes(opts.color) ? opts.color : 'green', nick: opts.nick || '' });
     camera.x = 0; camera.y = 0; frozen = false; lastSent = ''; lastTick = 99;
     buildBackground(level.bg);
     if (!running) {

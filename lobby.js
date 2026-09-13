@@ -243,7 +243,7 @@
     const sp = `+${Math.round(s.boost * 100)}%`; els.hudSpeed.textContent = sp; els.touchSpeed.textContent = sp;
     if (lastDashKey !== s.dashes + '/' + s.dashMax) {
       lastDashKey = s.dashes + '/' + s.dashMax;
-      const ticks = Array.from({ length: s.dashMax }, (_, i) => `<i class="${i < s.dashes ? '' : 'off'}"></i>`).join('');
+      const ticks = Array.from({ length: Math.max(s.dashMax, s.dashes) }, (_, i) => `<i class="${i < s.dashes ? (i >= s.dashMax ? 'extra' : '') : 'off'}"></i>`).join('');
       els.hudDash.innerHTML = ticks; els.dashCharges.innerHTML = ticks;
       els.dashBtn.disabled = s.dashes <= 0;
     }
