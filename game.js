@@ -75,9 +75,10 @@ const Game = (() => {
   const JUMP_BUFFER = 0.10;  // s
 
   const PARALLAX = [
-    { key: 'clouds',    factor: 0.15, scale: 2 },
-    { key: 'hillsFar',  factor: 0.35, scale: 2 },
-    { key: 'hillsNear', factor: 0.6,  scale: 2 },
+    // offsetY: as nuvens sobem para ficar visíveis acima dos morros (senão os morros as cobrem)
+    { key: 'clouds',    factor: 0.12, scale: 2, offsetY: -120 },
+    { key: 'hillsFar',  factor: 0.35, scale: 2, offsetY: 0 },
+    { key: 'hillsNear', factor: 0.6,  scale: 2, offsetY: 0 },
   ];
 
   // ---------- Estado ----------
@@ -106,9 +107,16 @@ const Game = (() => {
   function onKeyUp(e) { keys.delete(e.code); }
   function onBlur() { keys.clear(); }
 
-  const jumpHeld = () => JUMP_KEYS.some((k) => keys.has(k));
-  const leftHeld = () => keys.has('ArrowLeft') || keys.has('KeyA');
-  const rightHeld = () => keys.has('ArrowRight') || keys.has('KeyD');
+  // entrada virtual (joystick e botão de pulo no celular), somada ao teclado
+  const virt = { left: false, right: false, jump: false };
+  function setVirtualInput(patch) {
+    if (patch.jump && !virt.jump) jumpPressedThisFrame = true;
+    Object.assign(virt, patch);
+  }
+
+  const jumpHeld = () => virt.jump || JUMP_KEYS.some((k) => keys.has(k));
+  const leftHeld = () => virt.left || keys.has('ArrowLeft') || keys.has('KeyA');
+  const rightHeld = () => virt.right || keys.has('ArrowRight') || keys.has('KeyD');
 
   // ---------- Update ----------
   function update(dt) {
@@ -164,7 +172,7 @@ const Game = (() => {
     ctx.fillRect(0, 0, W, H);
     for (const layer of PARALLAX) {
       const { pattern, width, height } = bg[layer.key];
-      const dy = GROUND_Y - height + 6;
+      const dy = GROUND_Y - height + 6 + layer.offsetY;
       const off = -Math.round((camera.x * layer.factor) % width);
       ctx.save();
       ctx.translate(off, dy);
@@ -261,6 +269,7 @@ const Game = (() => {
     onState = cb || null;
     lastSent = '';
     keys.clear();
+    Object.assign(virt, { left: false, right: false, jump: false });
     addEventListener('keydown', onKeyDown);
     addEventListener('keyup', onKeyUp);
     addEventListener('blur', onBlur);
@@ -290,5 +299,5 @@ const Game = (() => {
     for (const k of remote.keys()) if (!seen.has(k)) remote.delete(k);
   }
 
-  return { load, start, stop, setRemote, COLORS, W, H, WORLD_W, GROUND_Y };
+  return { load, start, stop, setRemote, setVirtualInput, COLORS, W, H, WORLD_W, GROUND_Y };
 })();

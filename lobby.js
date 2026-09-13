@@ -3,13 +3,15 @@
 
 (() => {
   const $ = (id) => document.getElementById(id);
-  const screens = { lobby: $('lobby'), game: $('gamescreen') };
+  const screens = { lobby: $('lobby'), gate: $('fsgate'), game: $('gamescreen') };
+  // Celular/tablet: ponteiro "grosso" (toque). Notebooks com touchscreen continuam no modo desktop.
+  const isTouch = matchMedia('(pointer: coarse)').matches;
   const els = {
     nick: $('nick'), status: $('netstatus'), rooms: $('rooms'), roomsEmpty: $('rooms-empty'),
     createForm: $('create-form'), roomName: $('room-name'), passRow: $('pass-row'), roomPass: $('room-pass'),
     joinForm: $('join-form'), joinCode: $('join-code'), joinPass: $('join-pass'), joinMsg: $('join-msg'), createMsg: $('create-msg'),
     solo: $('solo'), hudRoom: $('hud-room'), hudCode: $('hud-code'), hudPlayers: $('hud-players'), leave: $('leave'),
-    canvas: $('game'), offlineNote: $('offline-note'),
+    canvas: $('game'), offlineNote: $('offline-note'), fsButton: $('fs-enter'),
   };
 
   let ws = null, online = false, myId = null;
@@ -26,7 +28,35 @@
     sendMsg('hello', { nick: nick(), color: myColor });
   });
 
-  function show(name) { for (const [k, el] of Object.entries(screens)) el.hidden = k !== name; }
+  let currentScreen = 'lobby';
+  function show(name) {
+    currentScreen = name;
+    for (const [k, el] of Object.entries(screens)) el.hidden = k !== name;
+    document.body.classList.toggle('in-game', name === 'game');
+  }
+
+  // ---------- tela cheia (celular) ----------
+  const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+  async function enterFullscreen() {
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) return false; // iPhone: sem API de tela cheia; mostra o jogo mesmo assim
+    try { await req.call(el, { navigationUI: 'hide' }); } catch { return false; }
+    try { await screen.orientation.lock('landscape'); } catch {}
+    return true;
+  }
+  function exitFullscreen() {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (fsElement() && exit) exit.call(document).catch(() => {});
+  }
+  els.fsButton.addEventListener('click', async () => {
+    await enterFullscreen();
+    if (currentScreen === 'gate') { show('game'); els.canvas.focus(); }
+  });
+  // Saiu da tela cheia (gesto do sistema) → volta para o portão, sem sair da sala
+  for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) {
+    document.addEventListener(ev, () => { if (isTouch && currentScreen === 'game' && !fsElement()) show('gate'); });
+  }
   function setMsg(el, text, kind) { el.textContent = text || ''; el.dataset.kind = kind || ''; }
   function setStatus(text, kind) { els.status.textContent = text; els.status.dataset.kind = kind; }
   function setOnline(v) {
@@ -81,8 +111,9 @@
     els.hudRoom.textContent = r ? r.name : 'Jogando sozinho';
     els.hudCode.textContent = r && r.visibility === 'private' ? `código ${r.code}` : '';
     els.hudPlayers.textContent = r ? String(players.size + 1) : '—';
-    show('game');
-    els.canvas.focus();
+    // No celular o jogo só aparece depois de entrar em tela cheia; a partida já começa (posição é enviada)
+    if (isTouch && !fsElement()) show('gate');
+    else { show('game'); els.canvas.focus(); }
     Game.start({
       color: myColor,
       nick: nick(),
@@ -97,6 +128,7 @@
     if (currentRoom) sendMsg('leave', {});
     currentRoom = null;
     players.clear();
+    exitFullscreen();
     show('lobby');
   }
 
@@ -174,6 +206,7 @@
 
   // ---------- boot ----------
   (async () => {
+    document.body.classList.toggle('touch', isTouch);
     show('lobby');
     els.passRow.hidden = true;
     setOnline(false);

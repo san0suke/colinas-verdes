@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Colinas Verdes</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700&display=swap">
@@ -109,6 +109,33 @@
   .hint { color: var(--muted); font-size: 14px; display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
   kbd { font: 12px ui-monospace, Consolas, monospace; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; }
   .credit { color: var(--muted); font-size: 12px; }
+
+  /* ---------- Portão de tela cheia (celular) ---------- */
+  #fsgate { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .btn.big { display: inline-flex; align-items: center; gap: 12px; font-size: 20px; padding: 18px 28px; border-radius: 16px; }
+  .btn.big svg { width: 28px; height: 28px; flex: none; }
+
+  /* ---------- Modo toque: jogo em tela cheia com controles por cima ---------- */
+  .touch.in-game { overflow: hidden; }
+  .touch #gamescreen { position: fixed; inset: 0; padding: 0; gap: 0; background: #0b1220; }
+  .touch #gamescreen .hud, .touch #gamescreen .hint, .touch #gamescreen .credit { display: none; }
+  .touch canvas#game {
+    width: min(100vw, calc(100vh * 16 / 9)); height: min(100vh, calc(100vw * 9 / 16));
+    aspect-ratio: auto; border-radius: 0; box-shadow: none; touch-action: none;
+  }
+  #touch-ui { display: none; }
+  .touch #touch-ui { display: block; position: fixed; inset: 0; pointer-events: none; }
+  #touch-ui > * { pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+  #stick { position: absolute; left: max(24px, env(safe-area-inset-left)); bottom: max(24px, env(safe-area-inset-bottom)); width: 140px; height: 140px; border-radius: 50%;
+           background: rgba(255,255,255,.18); border: 2px solid rgba(255,255,255,.35); }
+  #knob { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%;
+          background: rgba(255,255,255,.75); box-shadow: 0 4px 12px rgba(0,0,0,.3); pointer-events: none; }
+  #jump { position: absolute; right: max(28px, env(safe-area-inset-right)); bottom: max(28px, env(safe-area-inset-bottom)); width: 96px; height: 96px; border-radius: 50%;
+          border: 0; border-bottom: 5px solid var(--grass-dark); background: var(--grass); color: var(--grass-ink); font: 700 16px Nunito, sans-serif; }
+  #jump:active { transform: translateY(2px); border-bottom-width: 3px; }
+  #touch-leave { position: absolute; right: max(16px, env(safe-area-inset-right)); top: max(16px, env(safe-area-inset-top)); opacity: .9; }
+  #rotate-note { position: absolute; left: 0; right: 0; top: max(72px, env(safe-area-inset-top)); text-align: center; color: #fff; opacity: .8; font-size: 14px; display: none; }
+  @media (orientation: portrait) { .touch #rotate-note { display: block; } }
 </style>
 </head>
 <body>
@@ -170,6 +197,15 @@
   </div>
 </section>
 
+<section id="fsgate" hidden>
+  <button type="button" id="fs-enter" class="btn big">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/>
+    </svg>
+    Entrar em tela cheia
+  </button>
+</section>
+
 <section id="gamescreen" hidden>
   <div class="hud">
     <div class="hud-left">
@@ -185,10 +221,17 @@
     <span><kbd>Espaço</kbd> / <kbd>↑</kbd> / <kbd>W</kbd> pular</span>
   </div>
   <div class="credit">Assets: Kenney · New Platformer Pack (CC0)</div>
+  <div id="touch-ui">
+    <div id="stick" aria-label="Joystick"><div id="knob"></div></div>
+    <button type="button" id="jump" aria-label="Pular">PULAR</button>
+    <button type="button" id="touch-leave" class="btn ghost small">Sair</button>
+    <div id="rotate-note">Gire o celular para jogar na horizontal</div>
+  </div>
 </section>
 
 <script src="config.js"></script>
 <script src="game.js"></script>
 <script src="lobby.js"></script>
+<script src="touch.js"></script>
 </body>
 </html>
