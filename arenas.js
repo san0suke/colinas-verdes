@@ -42,8 +42,8 @@
     bushG:  { set: 'obj', kind: 'bush', idx: 9, tw: 2, th: 1, block: true },
     bushG2: { set: 'obj', kind: 'bush', idx: 20, tw: 2, th: 1, block: true },
     bushG3: { set: 'obj', kind: 'bush', idx: 16, tw: 1, th: 1, block: true },
-    logs:   { set: 'obj', kind: 'bush', idx: 2, tw: 2, th: 1, block: true },
-    log:    { set: 'obj', kind: 'bush', idx: 4, tw: 3, th: 1, block: true },
+    logs:   { rect: [432, 65, 16, 30], tw: 1, th: 2, block: true }, // pilha de troncos (rect explícito)
+    log:    { rect: [355, 80, 44, 16], tw: 3, th: 1, block: true }, // tronco caído (rect explícito: o recorte automático pegava as raízes de cima)
     rockM:  { set: 'obj', kind: 'rock', idx: 13, tw: 2, th: 1, block: true },
     rockM2: { set: 'obj', kind: 'rock', idx: 15, tw: 2, th: 2, block: true },
     rockG:  { set: 'obj', kind: 'rock', idx: 9, tw: 1, th: 1, block: true },

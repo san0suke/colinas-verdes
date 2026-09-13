@@ -100,6 +100,7 @@ const Game = (() => {
     if (e.target && e.target.tagName === 'INPUT') return;
     if (JUMP_KEYS.includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
     if (JUMP_KEYS.includes(e.code) && !keys.has(e.code)) jumpPressedThisFrame = true;
+    if (e.metaKey || e.ctrlKey || e.altKey) return; // atalhos do sistema (ex.: Win+Shift+S para captura de tela) não viram dash
     if (DASH_KEYS.includes(e.code) && !keys.has(e.code)) { dashPressedThisFrame = true; e.preventDefault(); }
     keys.add(e.code);
   }
