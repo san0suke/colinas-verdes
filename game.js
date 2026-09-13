@@ -24,7 +24,7 @@ const Game = (() => {
   // ---------- atlas / áudio ----------
   const SHEETS = ['tiles', 'enemies', 'characters', 'backgrounds'];
   const atlas = new Map();                // nome → { img, x, y, w, h }
-  const SOUNDS = { jump: 'sfx_jump', coin: 'sfx_coin', gem: 'sfx_gem', hurt: 'sfx_hurt', bump: 'sfx_bump', spring: 'sfx_jump-high', finish: 'sfx_magic', pop: 'sfx_disappear', tick: 'sfx_select', crate: 'crate.wav', star: 'star.wav', kill1: 'kill1.wav', kill2: 'kill2.wav', kill3: 'kill3.wav', kill4: 'kill4.wav' };
+  const SOUNDS = { jump: 'sfx_jump', coin: 'sfx_coin', gem: 'sfx_gem', hurt: 'sfx_hurt', bump: 'sfx_bump', spring: 'sfx_jump-high', finish: 'sfx_magic', pop: 'sfx_disappear', tick: 'sfx_select', crate: 'crate.wav', star: 'star.wav', kill1: 'kill1.wav', kill2: 'kill2.wav', kill3: 'kill3.wav', kill4: 'kill4.wav', starblock: 'starblock.wav' };
   const sounds = {};
   let muted = false;
   function play(name) {
@@ -167,7 +167,7 @@ const Game = (() => {
     const cell = (level.cells[r] && level.cells[r][c]) || null;
     if (!cell || !cell.star) return;
     activated.add(key);
-    if (opts && opts.sound) play('pop');
+    if (opts && opts.sound) play('starblock');
     items.push({ id: `${key},star`, kind: 'star', s: 'star', x: c * TILE + 32, y: r * TILE, vx: 0, vy: -380, t: 0 });
   }
   function removeItem(id) { items = items.filter((it) => it.id !== id); }
@@ -276,7 +276,7 @@ const Game = (() => {
               if (hooks.onCrate) { if (!pending.has(r + ',' + c)) { pending.add(r + ',' + c); play('crate'); hooks.onCrate(r, c); } }
               else breakCrate(r, c, { sound: true });
             } else if (cell.star && !activated.has(r + ',' + c)) { // bloco "!" solta uma estrela
-              if (hooks.onStarBlock) { if (!pending.has(r + ',' + c)) { pending.add(r + ',' + c); play('pop'); hooks.onStarBlock(r, c); } }
+              if (hooks.onStarBlock) { if (!pending.has(r + ',' + c)) { pending.add(r + ',' + c); play('starblock'); hooks.onStarBlock(r, c); } }
               else activateStar(r, c, { sound: true });
             }
             if (cell.k === 'spring') { player.vy = -SPRING_SPEED; player.onGround = false; player.bouncing = true; springs.set(r + ',' + c, now); play('spring'); }
