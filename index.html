@@ -163,6 +163,8 @@
           border: 0; border-bottom: 5px solid var(--grass-dark); background: var(--grass); color: var(--grass-ink); font: 700 16px Nunito, sans-serif; }
   #jump:active { transform: translateY(2px); border-bottom-width: 3px; }
   #touch-leave { position: absolute; right: max(16px, env(safe-area-inset-right)); top: max(16px, env(safe-area-inset-top)); opacity: .9; }
+  #touch-mute { position: absolute; right: calc(max(16px, env(safe-area-inset-right)) + 76px); top: max(16px, env(safe-area-inset-top)); opacity: .9; }
+  .hud-right { display: flex; gap: 8px; }
   #rotate-note { position: absolute; left: 0; right: 0; top: max(72px, env(safe-area-inset-top)); text-align: center; color: #fff; opacity: .8; font-size: 14px; display: none; }
   @media (orientation: portrait) { .touch #rotate-note { display: block; } }
 </style>
@@ -247,7 +249,7 @@
       <span class="hud-stat">🏁 <span id="hud-finished">0/1</span></span>
       <span id="hud-note" class="hud-note"></span>
     </div>
-    <button type="button" id="leave" class="btn ghost small">Sair da sala</button>
+    <span class="hud-right"><button type="button" class="btn ghost small" data-mute aria-label="Som">🔊</button><button type="button" id="leave" class="btn ghost small">Sair da sala</button></span>
   </div>
   <canvas id="game" width="960" height="576" tabindex="0" aria-label="Corrida de plataforma"></canvas>
   <div class="hint">
@@ -261,6 +263,7 @@
     <div id="stick"><div id="knob"></div></div>
     <button type="button" id="jump" aria-label="Pular">PULAR</button>
     <button type="button" id="touch-leave" class="btn ghost small">Sair</button>
+    <button type="button" id="touch-mute" class="btn ghost small" data-mute aria-label="Som">🔊</button>
     <div id="rotate-note">Gire o celular para jogar na horizontal</div>
     <div id="touch-hud">⏱ <span id="touch-time">0.0 s</span> &nbsp; 🪙 <span id="touch-coins">0</span> &nbsp; ⚡ <span id="touch-speed">+0%</span></div>
   </div>
@@ -273,10 +276,11 @@
   </div>
 </section>
 
-<script src="config.js?v=3357a02"></script>
-<script src="level.js?v=3357a02"></script>
-<script src="game.js?v=3357a02"></script>
-<script src="lobby.js?v=3357a02"></script>
-<script src="touch.js?v=3357a02"></script>
+<script src="config.js?v=46cd027"></script>
+<script src="level.js?v=46cd027"></script>
+<script src="game.js?v=46cd027"></script>
+<script src="music.js?v=46cd027"></script>
+<script src="lobby.js?v=46cd027"></script>
+<script src="touch.js?v=46cd027"></script>
 </body>
 </html>

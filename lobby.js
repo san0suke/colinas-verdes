@@ -57,6 +57,7 @@
     if (fsElement() && exit) exit.call(document).catch(() => {});
   }
   els.fsButton.addEventListener('click', async () => {
+    Music.start(); // gesto do usuário: libera o áudio no celular
     await enterFullscreen();
     if (currentScreen === 'gate') { show('game'); els.canvas.focus(); }
   });
@@ -171,6 +172,7 @@
     els.hudPlayers.textContent = String(players.size + 1);
     if (isTouch && !fsElement()) show('gate');
     else { show('game'); els.canvas.focus(); }
+    Music.start();
     if (raceInfo) {
       beginRace(raceInfo);
       if (raceInfo.phase === 'results') showResults(raceInfo.results || [], raceInfo.nextAt);
@@ -187,6 +189,7 @@
     currentRoom = null; race = null;
     players.clear();
     hideResults();
+    Music.stop();
     exitFullscreen();
     show('lobby');
   }
@@ -209,6 +212,9 @@
     });
     els.results.hidden = false;
     clearInterval(resultsTimer);
+    // jingle: venceu → Victory; chegou sem vencer → Complete; não terminou (ou entrou agora) → nada
+    const me = list.find((p) => p.id === myId || p.id === 'me');
+    if (me && me.time != null) Music.playJingle(list[0] === me ? 'victory' : 'complete');
     if (!currentRoom) { // sozinho: nova fase depois de 6 s
       nextAt = Date.now() + 6000;
       clearTimeout(soloNextTimer);
