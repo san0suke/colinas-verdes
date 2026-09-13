@@ -11,7 +11,7 @@ const Game = (() => {
   const GRAVITY = 2200, MAX_FALL = 1400;
   const MOVE_SPEED = 340, COIN_BOOST = 0.02, MAX_BOOST = 0.8, JUMP_SPEED = 820, JUMP_CUT = 0.45, COYOTE_TIME = 0.08, JUMP_BUFFER = 0.10;
   const GEM_VALUE = { gem_green: 5, gem_blue: 8, gem_red: 10, gem_yellow: 10 }; // gemas valem várias moedas
-  const CRATE_GEMS = 3, STAR_DASHES = 3;    // caixa marrom: 3 gemas; estrela: +3 dashes (pode passar do máximo)
+  const CRATE_GEMS = 3, STAR_DASHES = 3, CRATE_IMPACT = 400; // px/s de queda para quebrar caixa / ativar bloco (andar não conta)    // caixa marrom: 3 gemas; estrela: +3 dashes (pode passar do máximo)
   const HW = 24, BH = 96;                 // meia-largura e altura da caixa do jogador (pés em y)
   const BOUNCE_SPEED = 1500;              // quique em cima de outro jogador
   const ENEMY_BOUNCE = 780, SPRING_SPEED = 1350;
@@ -261,6 +261,7 @@ const Game = (() => {
     if (sy !== null && (player.y >= sy - 2 || (wasOnGround && sy - player.y <= 28))) {
       player.y = sy; player.vy = 0; player.onGround = true; player.bouncing = false;
     } else if (player.vy >= 0) {
+      const landVy = player.vy; // velocidade da queda no impacto
       const c0 = Math.floor((player.x - HW + 4) / TILE), c1 = Math.floor((player.x + HW - 4) / TILE);
       const snap = wasOnGround && !player.bouncing ? STEP_DOWN : 0;
       const r0 = Math.max(0, Math.floor((prevY - 1) / TILE)), r1 = Math.min(level.rows - 1, Math.floor((player.y + snap) / TILE));
@@ -271,11 +272,11 @@ const Game = (() => {
         if (cell.k === 'solid' || ((cell.k === 'oneway' || cell.k === 'spring') && prevY <= top + 6)) {
           if (player.y >= top - snap) {
             player.y = top; player.vy = 0; player.onGround = true; player.bouncing = false;
-            if (cell.crate) { // caixa marrom: quica; a quebra vale para todos (via servidor) ou local quando sozinho
+            if (cell.crate && landVy >= CRATE_IMPACT) { // caixa marrom: só no impacto de uma queda; a quebra vale para todos (via servidor) ou local quando sozinho
               player.onGround = false; player.vy = -420;
               if (hooks.onCrate) { if (!pending.has(r + ',' + c)) { pending.add(r + ',' + c); play('crate'); hooks.onCrate(r, c); } }
               else breakCrate(r, c, { sound: true });
-            } else if (cell.star && !activated.has(r + ',' + c)) { // bloco "!" solta uma estrela
+            } else if (cell.star && landVy >= CRATE_IMPACT && !activated.has(r + ',' + c)) { // bloco "!" solta uma estrela (também só no impacto)
               if (hooks.onStarBlock) { if (!pending.has(r + ',' + c)) { pending.add(r + ',' + c); play('starblock'); hooks.onStarBlock(r, c); } }
               else activateStar(r, c, { sound: true });
             }
