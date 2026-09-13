@@ -8,5 +8,7 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      - key: DEPLOY_STAMP
+        value: "d6bb291"
       - key: NODE_VERSION
         value: 22
