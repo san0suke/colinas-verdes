@@ -137,21 +137,20 @@
       x += w;
     }
     // ---------- rampas ----------
-    // Tiles do pack descem para a direita: short_b (64 px em 1 tile), long_a + long_b (64 px em 2 tiles);
-    // short_a / long_c são o bloco plano decorado que antecede a rampa. Subida = mesmos sprites espelhados.
+    // Tiles do pack descem para a direita: short_b (64 px em 1 tile), long_a + long_b (64 px em 2 tiles).
+    // short_a / long_c são o bloco que fica LOGO ABAIXO do fim baixo da rampa: continuam a borda escura no
+    // canto até encontrar o topo do chão mais baixo. Subida = mesmos sprites espelhados.
     function slope(r, c, s, h0, h1, flip) { set(r, c, s, 'slope'); Object.assign(cells[r][c], { h0, h1, flip }); }
-    function keepTop(r, c, s) { set(r, c, s, 'solid'); cells[r][c].keep = true; }
-    // desce 1 linha a partir da coluna x (gt é o topo atual). Retorna as colunas usadas.
+    function keepBlock(r, c, s, flip) { set(r, c, s, 'solid'); Object.assign(cells[r][c], { keep: true, flip }); }
+    // desce 1 linha a partir da coluna x (gt é o topo atual)
     function rampDown(long) {
       const c = x;
       if (long) {
-        if (get(gt, c - 1)) keepTop(gt, c - 1, T('ramp_long_c'));
         slope(gt, c, T('ramp_long_a'), 0, 32, false); ground(c, c, gt + 1);
-        slope(gt, c + 1, T('ramp_long_b'), 32, 64, false); ground(c + 1, c + 1, gt + 1);
+        slope(gt, c + 1, T('ramp_long_b'), 32, 64, false); ground(c + 1, c + 1, gt + 1); keepBlock(gt + 1, c + 1, T('ramp_long_c'), false);
         x += 2;
       } else {
-        if (get(gt, c - 1)) keepTop(gt, c - 1, T('ramp_short_a'));
-        slope(gt, c, T('ramp_short_b'), 0, 64, false); ground(c, c, gt + 1);
+        slope(gt, c, T('ramp_short_b'), 0, 64, false); ground(c, c, gt + 1); keepBlock(gt + 1, c, T('ramp_short_a'), false);
         x += 1;
       }
       gt += 1;
@@ -160,14 +159,12 @@
     function rampUp(long) {
       const c = x;
       if (long) {
-        slope(gt - 1, c, T('ramp_long_b'), 64, 32, true); ground(c, c, gt);
+        slope(gt - 1, c, T('ramp_long_b'), 64, 32, true); ground(c, c, gt); keepBlock(gt, c, T('ramp_long_c'), true);
         slope(gt - 1, c + 1, T('ramp_long_a'), 32, 0, true); ground(c + 1, c + 1, gt);
-        keepTop(gt - 1, c + 2, T('ramp_long_c')); ground(c + 2, c + 2, gt);
-        x += 3;
-      } else {
-        slope(gt - 1, c, T('ramp_short_b'), 64, 0, true); ground(c, c, gt);
-        keepTop(gt - 1, c + 1, T('ramp_short_a')); ground(c + 1, c + 1, gt);
         x += 2;
+      } else {
+        slope(gt - 1, c, T('ramp_short_b'), 64, 0, true); ground(c, c, gt); keepBlock(gt, c, T('ramp_short_a'), true);
+        x += 1;
       }
       gt -= 1;
     }

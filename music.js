@@ -6,8 +6,8 @@ const Music = (() => {
   const BG_VOLUME = 0.35, JINGLE_VOLUME = 0.7;
 
   let bg = null, jingle = null, lastTrack = -1, wanted = false;
-  let muted = false;
-  try { muted = localStorage.getItem('muted') === '1'; } catch {}
+  let muted = false, sfxMuted = false;   // muted = música; sfxMuted = efeitos do jogo
+  try { muted = localStorage.getItem('muted') === '1'; sfxMuted = localStorage.getItem('sfxMuted') === '1'; } catch {}
 
   function pickTrack() {
     let i; do i = Math.floor(Math.random() * TRACKS.length); while (TRACKS.length > 1 && i === lastTrack);
@@ -47,20 +47,26 @@ const Music = (() => {
     jingle.onended = () => { jingle = null; if (wanted && bg) bg.play().catch(() => {}); };
     jingle.play().catch(() => { jingle = null; if (wanted && bg) bg.play().catch(() => {}); });
   }
-  function setMuted(v) {
+  function setMuted(v) { // música
     muted = !!v;
     try { localStorage.setItem('muted', muted ? '1' : '0'); } catch {}
     if (bg) bg.muted = muted;
     if (jingle) jingle.muted = muted;
-    if (typeof Game !== 'undefined') Game.setMuted(muted);
-    for (const b of document.querySelectorAll('[data-mute]')) { b.textContent = muted ? '🔇' : '🔊'; b.setAttribute('aria-pressed', String(muted)); b.title = muted ? 'Ativar som' : 'Silenciar'; }
+    for (const b of document.querySelectorAll('[data-mute]')) { b.textContent = muted ? '🎵🚫' : '🎵'; b.setAttribute('aria-pressed', String(muted)); b.title = muted ? 'Ligar música' : 'Desligar música'; }
+  }
+  function setSfxMuted(v) { // efeitos do jogo (pulo, moeda, dano…)
+    sfxMuted = !!v;
+    try { localStorage.setItem('sfxMuted', sfxMuted ? '1' : '0'); } catch {}
+    if (typeof Game !== 'undefined') Game.setMuted(sfxMuted);
+    for (const b of document.querySelectorAll('[data-mute-sfx]')) { b.textContent = sfxMuted ? '🔇' : '🔊'; b.setAttribute('aria-pressed', String(sfxMuted)); b.title = sfxMuted ? 'Ligar sons' : 'Desligar sons'; }
   }
   const isMuted = () => muted;
 
   document.addEventListener('DOMContentLoaded', () => {
-    setMuted(muted);
+    setMuted(muted); setSfxMuted(sfxMuted);
     for (const b of document.querySelectorAll('[data-mute]')) b.addEventListener('click', () => setMuted(!muted));
+    for (const b of document.querySelectorAll('[data-mute-sfx]')) b.addEventListener('click', () => setSfxMuted(!sfxMuted));
   });
 
-  return { start, stop, playJingle, setMuted, isMuted };
+  return { start, stop, playJingle, setMuted, setSfxMuted, isMuted };
 })();

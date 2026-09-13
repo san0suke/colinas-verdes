@@ -16,6 +16,7 @@ const Game = (() => {
   const BOUNCE_SPEED = 1500;              // quique em cima de outro jogador
   const ENEMY_BOUNCE = 780, SPRING_SPEED = 1350;
   const STOMP_TOLERANCE = 14, CAMERA_TOP_MARGIN = 120;
+  const STEP_UP = 18, STEP_DOWN = 30;      // degrau que sobe sem bloquear; distância que "gruda" no chão ao descer
   const HURT_INVULN = 1.6, HIT_ANIM = 0.45;
   const DASH_CHARGES = 4, DASH_SPEED = 1200, DASH_TIME = 0.22; // dash: 4 usos por corrida, forte e curto, sem gravidade
   const HURT_COIN_LOSS = 15;              // moedas perdidas a cada dano
@@ -216,11 +217,13 @@ const Game = (() => {
     player.x = Math.max(HW, Math.min(level.width - HW, player.x));
     {
       const onSlope = slopeAt(player.x, player.y - 4, player.y + 8) !== null;
-      const r0 = Math.max(0, Math.floor((player.y - BH + 2) / TILE)), r1 = Math.min(level.rows - 1, Math.floor((player.y - 2) / TILE) - (onSlope ? 1 : 0));
+      const r0 = Math.max(0, Math.floor((player.y - BH + 2) / TILE)), r1 = Math.min(level.rows - 1, Math.floor((player.y - 2) / TILE));
       const c0 = Math.floor((player.x - HW) / TILE), c1 = Math.floor((player.x + HW) / TILE);
       for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
         const cell = cellAt(r, c);
         if (!cell || cell.k !== 'solid') continue;
+        if (onSlope && r === r1) continue;                                // em rampa: a linha dos pés é resolvida pela rampa
+        if (wasOnGround && r * TILE >= player.y - STEP_UP) continue; // degrau baixo (saída de rampa): sobe em vez de bater
         if (player.vx > 0) player.x = c * TILE - HW; else if (player.vx < 0) player.x = (c + 1) * TILE + HW;
       }
     }
@@ -232,20 +235,21 @@ const Game = (() => {
       player.y = sy; player.vy = 0; player.onGround = true; player.bouncing = false;
     } else if (player.vy >= 0) {
       const c0 = Math.floor((player.x - HW + 4) / TILE), c1 = Math.floor((player.x + HW - 4) / TILE);
-      const r0 = Math.max(0, Math.floor((prevY - 1) / TILE)), r1 = Math.min(level.rows - 1, Math.floor(player.y / TILE));
+      const snap = wasOnGround && !player.bouncing ? STEP_DOWN : 0;
+      const r0 = Math.max(0, Math.floor((prevY - 1) / TILE)), r1 = Math.min(level.rows - 1, Math.floor((player.y + snap) / TILE));
       for (let r = r0; r <= r1 && !player.onGround; r++) for (let c = c0; c <= c1; c++) {
         const cell = cellAt(r, c);
         if (!cell) continue;
         const top = r * TILE;
         if (cell.k === 'solid' || ((cell.k === 'oneway' || cell.k === 'spring') && prevY <= top + 6)) {
-          if (player.y >= top) {
+          if (player.y >= top - snap) {
             player.y = top; player.vy = 0; player.onGround = true; player.bouncing = false;
-            if (cell.crate) { // caixa marrom quebra e solta 3 gemas
-              broken.add(r + ',' + c); player.coins += CRATE_GEMS * GEM_VALUE.gem_green; play('gem'); player.onGround = false; player.vy = -420;
-              for (let i = 0; i < CRATE_GEMS; i++) particles.push({ x: c * TILE + 32, y: top, vx: (i - 1) * 140, vy: -520, t: 0.7, s: 'gem_green' });
+            if (cell.crate) { // caixa marrom quebra e solta 3 gemas, que caem na fase
+              broken.add(r + ',' + c); play('pop'); player.onGround = false; player.vy = -420;
+              for (let i = 0; i < CRATE_GEMS; i++) items.push({ kind: 'gem', s: 'gem_green', x: c * TILE + 32, y: top + TILE, vx: (i - 1) * 150, vy: -560, t: 0 });
             } else if (cell.star && !activated.has(r + ',' + c)) { // bloco "!" solta uma estrela
               activated.add(r + ',' + c); play('pop');
-              items.push({ x: c * TILE + 32, y: top, vy: -380, t: 0 });
+              items.push({ kind: 'star', s: 'star', x: c * TILE + 32, y: top, vx: 0, vy: -380, t: 0 });
             }
             if (cell.k === 'spring') { player.vy = -SPRING_SPEED; player.onGround = false; player.bouncing = true; springs.set(r + ',' + c, now); play('spring'); }
             break;
@@ -288,9 +292,17 @@ const Game = (() => {
     // --- estrelas soltas e partículas ---
     for (const it of items) {
       it.t += dt; it.vy += GRAVITY * 0.6 * dt; it.y += it.vy * dt;
+      if (it.vx) {
+        const nx = it.x + it.vx * dt, side = cellAt(Math.floor((it.y - 20) / TILE), Math.floor(nx / TILE));
+        if (side && side.k === 'solid') it.vx = -it.vx * 0.5; else it.x = Math.max(16, Math.min(level.width - 16, nx));
+      }
       const r = Math.floor((it.y - 1) / TILE), c = Math.floor(it.x / TILE), under = cellAt(r, c);
-      if (it.vy > 0 && under && (under.k === 'solid' || under.k === 'oneway')) { it.y = r * TILE; it.vy = 0; }
-      if (Math.abs(it.x - player.x) < HW + 24 && it.y > player.y - BH - 8 && it.y - 56 < player.y) { it.taken = true; player.dashes += STAR_DASHES; player.popText = `+${STAR_DASHES} 💨 dash`; player.popUntil = 1.6; play('finish'); }
+      if (it.vy > 0 && under && (under.k === 'solid' || under.k === 'oneway')) { it.y = r * TILE; it.vy = 0; it.vx *= 0.6; if (Math.abs(it.vx) < 8) it.vx = 0; }
+      if (it.t > 0.35 && Math.abs(it.x - player.x) < HW + 24 && it.y > player.y - BH - 8 && it.y - 56 < player.y) {
+        it.taken = true;
+        if (it.kind === 'star') { player.dashes += STAR_DASHES; player.popText = `+${STAR_DASHES} 💨 dash`; player.popUntil = 1.6; play('finish'); }
+        else { player.coins += GEM_VALUE[it.s] || 1; play('gem'); }
+      }
     }
     items = items.filter((it) => !it.taken && it.y < level.height + 200);
     for (const p of particles) { p.t -= dt; p.vy += GRAVITY * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
@@ -363,7 +375,7 @@ const Game = (() => {
     }
   }
   function drawItems() {
-    for (const it of items) draw('star', Math.round(it.x - 32 - camera.x), Math.round(it.y - 64 - camera.y + Math.sin(it.t * 6) * 3));
+    for (const it of items) draw(it.s, Math.round(it.x - 32 - camera.x), Math.round(it.y - 64 - camera.y + (it.vy === 0 ? Math.sin(it.t * 6) * 3 : 0)));
     for (const p of particles) { ctx.save(); ctx.globalAlpha = Math.min(1, p.t * 2); draw(p.s, Math.round(p.x - 32 - camera.x), Math.round(p.y - 64 - camera.y)); ctx.restore(); }
   }
   function drawEnemies() {
