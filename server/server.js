@@ -18,6 +18,7 @@ const ROOM_NOUN = ['Colina', 'Trilha', 'Clareira', 'Pradaria', 'Encosta', 'Campi
 const randomRoomName = () => `${ROOM_NOUN[Math.floor(Math.random() * ROOM_NOUN.length)]} ${ROOM_ADJ[Math.floor(Math.random() * ROOM_ADJ.length)]}`;
 const COUNTDOWN_MS = 4000;      // contagem regressiva antes da largada
 const RESULTS_MS = 10000;       // placar na tela antes da próxima corrida
+const FINISH_GRACE_MS = 15000;  // depois que o primeiro chega, os outros têm este tempo
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.txt': 'text/plain' };
 
 // ---------- estado ----------
@@ -49,13 +50,14 @@ const playerView = (c) => ({ id: c.id, nick: c.nick, color: c.color, x: c.x, y: 
 // A corrida acaba quando o penúltimo cruza a chegada (com 1 ou 2 jogadores, quando o primeiro cruza).
 function raceView(room) {
   const r = room.race;
-  return { seed: r.seed, startAt: r.startAt, phase: r.phase, results: r.results || null, nextAt: r.nextAt || null, finished: r.finished.length, broken: [...r.broken], activated: [...r.activated], now: Date.now() };
+  return { seed: r.seed, startAt: r.startAt, phase: r.phase, results: r.results || null, nextAt: r.nextAt || null, finished: r.finished.length, broken: [...r.broken], activated: [...r.activated], endsAt: r.endsAt || null, now: Date.now() };
 }
 function startRace(room, except) {
   clearTimeout(room.nextTimer);
+  if (room.race) clearTimeout(room.race.graceTimer);
   const seed = crypto.randomInt(1, 2 ** 31);
   const level = Level.generate(seed);
-  room.race = { seed, level, finishX: level.finishX, startAt: Date.now() + COUNTDOWN_MS, phase: 'racing', finished: [], results: null, nextAt: null, broken: new Set(), activated: new Set(), taken: new Set() };
+  room.race = { seed, level, finishX: level.finishX, startAt: Date.now() + COUNTDOWN_MS, phase: 'racing', finished: [], results: null, nextAt: null, broken: new Set(), activated: new Set(), taken: new Set(), endsAt: null, graceTimer: null };
   for (const p of room.players.values()) { p.finished = false; p.x = level.spawnX; p.y = level.spawnY; }
   broadcastRoom(room, 'race_start', raceView(room), except);
 }
@@ -68,6 +70,7 @@ function checkRaceEnd(room) {
 }
 function endRace(room) {
   const r = room.race;
+  clearTimeout(r.graceTimer);
   r.phase = 'results';
   const done = new Set(r.finished.map((f) => f.id));
   const rest = [...room.players.values()].filter((p) => !done.has(p.id)).map((p) => ({ id: p.id, nick: p.nick, color: p.color, time: null, coins: p.coins || 0 }));
@@ -83,7 +86,7 @@ function leaveRoom(c, notify = true) {
   room.players.delete(c.id);
   c.room = null;
   broadcastRoom(room, 'player_leave', { id: c.id });
-  if (room.players.size === 0) { clearTimeout(room.nextTimer); rooms.delete(room.code); } // a sala morre com o último jogador
+  if (room.players.size === 0) { clearTimeout(room.nextTimer); if (room.race) clearTimeout(room.race.graceTimer); rooms.delete(room.code); } // a sala morre com o último jogador
   else checkRaceEnd(room);
   if (notify) send(c, 'rooms', { rooms: publicRooms() });
   broadcastRooms();
@@ -169,7 +172,11 @@ const handlers = {
     c.finished = true;
     c.coins = Math.max(0, Math.min(999, Number(m.coins) || 0));
     r.finished.push({ id: c.id, nick: c.nick, color: c.color, time: now - r.startAt, coins: c.coins });
-    broadcastRoom(room, 'player_finish', { id: c.id, nick: c.nick, place: r.finished.length, time: now - r.startAt, finished: r.finished.length, total: room.players.size });
+    if (r.finished.length === 1) { // primeiro a chegar: os outros têm 15 s
+      r.endsAt = now + FINISH_GRACE_MS;
+      r.graceTimer = setTimeout(() => { if (room.race === r && r.phase === 'racing') endRace(room); }, FINISH_GRACE_MS);
+    }
+    broadcastRoom(room, 'player_finish', { id: c.id, nick: c.nick, place: r.finished.length, time: now - r.startAt, finished: r.finished.length, total: room.players.size, endsAt: r.endsAt });
     checkRaceEnd(room);
   },
 };

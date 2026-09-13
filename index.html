@@ -112,6 +112,7 @@
   .hud-players, .hud-stat { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .hud-stat { font-weight: 700; color: var(--ink); }
   .hud-note { font-size: 13px; color: var(--grass-dark); font-weight: 700; }
+  .hud-deadline { color: var(--error) !important; }
   #touch-hud { position: absolute; left: max(16px, env(safe-area-inset-left)); top: max(12px, env(safe-area-inset-top)); color: #fff; font: 700 15px Nunito, sans-serif; text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none; }
 
   /* ---------- Placar ---------- */
@@ -262,6 +263,7 @@
       <span class="hud-stat" title="Velocidade extra por moedas e gemas">⚡ <span id="hud-speed">+0%</span></span>
       <span class="hud-stat" title="Dash (Shift) — 4 por corrida">💨 <span id="hud-dash" class="ticks" aria-label="Cargas de dash"></span></span>
       <span class="hud-stat">🏁 <span id="hud-finished">0/1</span></span>
+      <span id="hud-deadline" class="hud-stat hud-deadline"></span>
       <span id="hud-note" class="hud-note"></span>
     </div>
     <span class="hud-right"><button type="button" class="btn ghost small" data-mute-sfx aria-label="Sons do jogo">🔊</button><button type="button" class="btn ghost small" data-mute aria-label="Música">🎵</button><button type="button" id="leave" class="btn ghost small">Sair da sala</button></span>
@@ -284,7 +286,7 @@
     <button type="button" id="touch-mute" class="btn ghost small" data-mute aria-label="Música">🎵</button>
     <button type="button" id="touch-mute-sfx" class="btn ghost small" data-mute-sfx aria-label="Sons do jogo">🔊</button>
     <div id="rotate-note">Gire o celular para jogar na horizontal</div>
-    <div id="touch-hud">⏱ <span id="touch-time">0.0 s</span> &nbsp; 🪙 <span id="touch-coins">0</span> &nbsp; ⚡ <span id="touch-speed">+0%</span></div>
+    <div id="touch-hud">⏱ <span id="touch-time">0.0 s</span> &nbsp; 🪙 <span id="touch-coins">0</span> &nbsp; ⚡ <span id="touch-speed">+0%</span> &nbsp; <span id="touch-deadline" class="hud-deadline"></span></div>
   </div>
   <div id="results" class="results" hidden>
     <div class="results-card">
@@ -295,11 +297,11 @@
   </div>
 </section>
 
-<script src="config.js?v=8c60ea4"></script>
-<script src="level.js?v=8c60ea4"></script>
-<script src="game.js?v=8c60ea4"></script>
-<script src="music.js?v=8c60ea4"></script>
-<script src="lobby.js?v=8c60ea4"></script>
-<script src="touch.js?v=8c60ea4"></script>
+<script src="config.js?v=60400c1"></script>
+<script src="level.js?v=60400c1"></script>
+<script src="game.js?v=60400c1"></script>
+<script src="music.js?v=60400c1"></script>
+<script src="lobby.js?v=60400c1"></script>
+<script src="touch.js?v=60400c1"></script>
 </body>
 </html>

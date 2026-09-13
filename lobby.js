@@ -11,7 +11,7 @@
     createForm: $('create-form'), roomName: $('room-name'), passRow: $('pass-row'), roomPass: $('room-pass'),
     joinForm: $('join-form'), joinCode: $('join-code'), joinPass: $('join-pass'), joinMsg: $('join-msg'), createMsg: $('create-msg'),
     solo: $('solo'), hudRoom: $('hud-room'), hudCode: $('hud-code'), hudPlayers: $('hud-players'), leave: $('leave'),
-    hudTime: $('hud-time'), hudCoins: $('hud-coins'), hudSpeed: $('hud-speed'), touchSpeed: $('touch-speed'), hudDash: $('hud-dash'), dashCharges: $('dash-charges'), dashBtn: $('dash'), hudFinished: $('hud-finished'), hudNote: $('hud-note'),
+    hudTime: $('hud-time'), hudCoins: $('hud-coins'), hudDeadline: $('hud-deadline'), touchDeadline: $('touch-deadline'), hudSpeed: $('hud-speed'), touchSpeed: $('touch-speed'), hudDash: $('hud-dash'), dashCharges: $('dash-charges'), dashBtn: $('dash'), hudFinished: $('hud-finished'), hudNote: $('hud-note'),
     touchTime: $('touch-time'), touchCoins: $('touch-coins'),
     results: $('results'), resultsList: $('results-list'), resultsNext: $('results-next'),
     canvas: $('game'), offlineNote: $('offline-note'), fsButton: $('fs-enter'),
@@ -245,6 +245,9 @@
     els.hudTime.textContent = t; els.touchTime.textContent = t;
     els.hudCoins.textContent = String(s.coins); els.touchCoins.textContent = String(s.coins);
     const sp = `+${Math.round(s.boost * 100)}%`; els.hudSpeed.textContent = sp; els.touchSpeed.textContent = sp;
+    let dl = '';
+    if (race && race.endsAt && race.phase === 'racing' && !s.finished) { const left = Math.max(0, (race.endsAt - (Date.now() + clockOffset)) / 1000); dl = `⏳ ${left.toFixed(0)} s`; }
+    els.hudDeadline.textContent = dl; els.touchDeadline.textContent = dl;
     if (lastDashKey !== s.dashes + '/' + s.dashMax) {
       lastDashKey = s.dashes + '/' + s.dashMax;
       const ticks = Array.from({ length: Math.max(s.dashMax, s.dashes) }, (_, i) => `<i class="${i < s.dashes ? (i >= s.dashMax ? 'extra' : '') : 'off'}"></i>`).join('');
@@ -266,6 +269,7 @@
     player_leave(m) { if (players.delete(m.id)) pushRemote(); },
     state(m) { const p = players.get(m.id); if (!p) return; p.x = m.x; p.y = m.y; p.f = m.f; p.a = m.a; pushRemote(); },
     player_finish(m) {
+      if (race && m.endsAt) race.endsAt = m.endsAt;
       els.hudFinished.textContent = `${m.finished}/${m.total}`;
       setNote(m.id === myId ? `Você chegou em ${m.place}º (${fmtTime(m.time)})` : `${m.nick} chegou em ${m.place}º`);
     },
