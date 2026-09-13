@@ -81,9 +81,9 @@ const Game = (() => {
   const JUMP_BUFFER = 0.10;  // s
 
   // quique ao cair em cima de outro jogador
-  const BODY_W = 60;             // largura considerada para "estar em cima" (px)
-  const BODY_H = 104;            // altura do corpo (o sprite de 128 tem ar em cima)
-  const BOUNCE_SPEED = 1050;     // px/s — mais forte que o pulo normal
+  const BODY_W = 52;             // largura considerada para "estar em cima" (px)
+  const BODY_H = 96;             // altura do corpo: o sprite de 128 tem 31 px de ar em cima (topo da cabeça em y=31)
+  const BOUNCE_SPEED = 1500;     // px/s — quica ~510 px (pulo normal sobe ~150 px)
   const STOMP_TOLERANCE = 14;    // px — quanto os pés podem já ter passado da cabeça no frame anterior
 
   // As imagens do pack misturam camadas: fade_hills tem morros claros (221,239,255) e uma faixa
