@@ -24,7 +24,7 @@ const Game = (() => {
   // ---------- atlas / áudio ----------
   const SHEETS = ['tiles', 'enemies', 'characters', 'backgrounds'];
   const atlas = new Map();                // nome → { img, x, y, w, h }
-  const SOUNDS = { jump: 'sfx_jump', coin: 'sfx_coin', gem: 'sfx_gem', hurt: 'sfx_hurt', bump: 'sfx_bump', spring: 'sfx_jump-high', finish: 'sfx_magic', pop: 'sfx_disappear', tick: 'sfx_select', crate: 'crate.wav' };
+  const SOUNDS = { jump: 'sfx_jump', coin: 'sfx_coin', gem: 'sfx_gem', hurt: 'sfx_hurt', bump: 'sfx_bump', spring: 'sfx_jump-high', finish: 'sfx_magic', pop: 'sfx_disappear', tick: 'sfx_select', crate: 'crate.wav', star: 'star.wav' };
   const sounds = {};
   let muted = false;
   function play(name) {
@@ -300,7 +300,7 @@ const Game = (() => {
       if (it.vy > 0 && under && (under.k === 'solid' || under.k === 'oneway')) { it.y = r * TILE; it.vy = 0; it.vx *= 0.6; if (Math.abs(it.vx) < 8) it.vx = 0; }
       if (it.t > 0.35 && Math.abs(it.x - player.x) < HW + 24 && it.y > player.y - BH - 8 && it.y - 56 < player.y) {
         it.taken = true;
-        if (it.kind === 'star') { player.dashes += STAR_DASHES; player.popText = `+${STAR_DASHES} 💨 dash`; player.popUntil = 1.6; play('finish'); }
+        if (it.kind === 'star') { player.dashes += STAR_DASHES; player.popText = `+${STAR_DASHES} 💨 dash`; player.popUntil = 1.6; play('star'); }
         else { player.coins += GEM_VALUE[it.s] || 1; play('gem'); }
       }
     }
