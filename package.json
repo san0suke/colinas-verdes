@@ -1,0 +1,14 @@
+{
+  "name": "colinas-verdes",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Protótipo de plataforma online (assets Kenney, CC0)",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

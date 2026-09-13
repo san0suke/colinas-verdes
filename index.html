@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Colinas Verdes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700&display=swap">
+<style>
+  :root {
+    --sky: #cbe6ff; --sky-deep: #a9d3f7;
+    --panel: #ffffff; --panel-2: #f1f7fc;
+    --ink: #22354a; --muted: #5f7489; --line: #cfe0ee;
+    --grass: #3fbf6a; --grass-dark: #2e9a53; --grass-ink: #0f3d21;
+    --ok: #2e9a53; --warn: #c98a12; --error: #cc4b3a;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --sky: #142238; --sky-deep: #0f1a2c;
+      --panel: #1d2b44; --panel-2: #172338;
+      --ink: #e8f0fa; --muted: #98abc2; --line: #2f4260;
+      --grass: #4ccf78; --grass-dark: #37b062; --grass-ink: #08210f;
+      --warn: #e2a63a; --error: #ee6b5a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --sky: #142238; --sky-deep: #0f1a2c;
+    --panel: #1d2b44; --panel-2: #172338;
+    --ink: #e8f0fa; --muted: #98abc2; --line: #2f4260;
+    --grass: #4ccf78; --grass-dark: #37b062; --grass-ink: #08210f;
+    --warn: #e2a63a; --error: #ee6b5a;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; color: var(--ink);
+    background: linear-gradient(180deg, var(--sky) 0%, var(--sky-deep) 100%);
+    font: 500 15px/1.45 Nunito, "Segoe UI", system-ui, sans-serif;
+  }
+  h1, h2 { font-family: Fredoka, Nunito, system-ui, sans-serif; text-wrap: balance; margin: 0; }
+  [hidden] { display: none !important; }
+
+  /* ---------- Lobby ---------- */
+  #lobby { max-width: 980px; margin: 0 auto; padding: 32px 20px 48px; }
+  .masthead { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+  .masthead h1 { font-size: 44px; font-weight: 700; letter-spacing: -0.01em; line-height: 1; color: var(--grass-ink); }
+  :root[data-theme="dark"] .masthead h1 { color: var(--grass); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .masthead h1 { color: var(--grass); } }
+  .masthead p { margin: 6px 0 0; color: var(--muted); }
+  .me { display: flex; align-items: center; gap: 10px; }
+  .me label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .netstatus { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); }
+  .netstatus[data-kind="ok"] { color: var(--ok); }
+  .netstatus[data-kind="warn"] { color: var(--warn); }
+  .netstatus[data-kind="error"] { color: var(--error); }
+
+  .grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; }
+  .panel h2 { font-size: 20px; font-weight: 600; margin-bottom: 12px; }
+  .stack { display: grid; gap: 12px; }
+  .note { background: var(--panel-2); border-radius: 10px; padding: 10px 12px; color: var(--muted); font-size: 14px; }
+
+  input[type=text], input[type=password] {
+    width: 100%; font: inherit; color: var(--ink); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
+  }
+  input:focus-visible, button:focus-visible, .seg label:has(:focus-visible) { outline: 3px solid var(--grass); outline-offset: 1px; }
+  .field { display: grid; gap: 6px; }
+  .field > span { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .row { display: flex; gap: 10px; align-items: end; }
+  .row .field { flex: 1; }
+
+  .seg { display: inline-flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg label { position: relative; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-weight: 700; color: var(--muted); }
+  .seg input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .seg label:has(input:checked) { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+
+  .btn {
+    font: 700 15px Nunito, system-ui, sans-serif; color: var(--grass-ink); background: var(--grass);
+    border: 0; border-bottom: 3px solid var(--grass-dark); border-radius: 10px; padding: 10px 18px; cursor: pointer;
+  }
+  .btn:active { transform: translateY(1px); border-bottom-width: 2px; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.ghost { background: var(--panel-2); color: var(--ink); border-bottom-color: var(--line); }
+  .btn.small { padding: 7px 14px; font-size: 14px; }
+  .msg { min-height: 1.3em; font-size: 14px; color: var(--muted); }
+  .msg[data-kind="error"] { color: var(--error); }
+
+  .rooms { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .room { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; background: var(--panel-2); border-radius: 10px; }
+  .room-name { font-weight: 700; display: block; }
+  .room-meta { font-size: 13px; color: var(--muted); }
+  .rooms-empty { color: var(--muted); padding: 18px 0; text-align: center; }
+
+  .divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  /* ---------- Jogo ---------- */
+  #gamescreen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
+  .hud { width: min(960px, 96vw); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .hud-left { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .hud-room { font-family: Fredoka, sans-serif; font-weight: 600; font-size: 20px; }
+  .hud-code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; color: var(--muted); }
+  .hud-players { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  canvas#game { width: min(960px, 96vw); aspect-ratio: 16 / 9; display: block; border-radius: 6px; box-shadow: 0 14px 40px rgba(10,30,50,.35); outline: none; }
+  canvas#game:focus-visible { box-shadow: 0 0 0 3px var(--grass), 0 14px 40px rgba(10,30,50,.35); }
+  .hint { color: var(--muted); font-size: 14px; display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+  kbd { font: 12px ui-monospace, Consolas, monospace; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; }
+  .credit { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<section id="lobby">
+  <header class="masthead">
+    <div>
+      <h1>Colinas Verdes</h1>
+      <p>Crie uma sala ou entre em uma para jogar com outras pessoas.</p>
+    </div>
+    <div class="me">
+      <label for="nick">Apelido</label>
+      <input type="text" id="nick" maxlength="16" placeholder="Jogador" autocomplete="nickname">
+      <span id="netstatus" class="netstatus" data-kind="warn">Carregando…</span>
+    </div>
+  </header>
+
+  <p id="offline-note" class="note" hidden>
+    Sem conexão com o servidor de salas. Dá para jogar sozinho enquanto isso.
+  </p>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>Salas públicas</h2>
+      <ul id="rooms" class="rooms"></ul>
+      <p id="rooms-empty" class="rooms-empty">Nenhuma sala pública aberta agora. Crie a primeira!</p>
+    </section>
+
+    <div class="stack">
+      <section class="panel">
+        <h2>Criar sala</h2>
+        <form id="create-form" class="stack" autocomplete="off">
+          <label class="field"><span>Nome da sala</span><input type="text" id="room-name" maxlength="32" placeholder="Ex.: Corrida das colinas"></label>
+          <div class="field"><span>Visibilidade</span>
+            <div class="seg">
+              <label><input type="radio" name="visibility" value="public" checked>Pública</label>
+              <label><input type="radio" name="visibility" value="private">Privada</label>
+            </div>
+          </div>
+          <label class="field" id="pass-row"><span>Senha (opcional)</span><input type="password" id="room-pass" maxlength="32" placeholder="Deixe vazio para entrar só com o código"></label>
+          <div class="row"><button type="submit" class="btn">Criar e entrar</button><span id="create-msg" class="msg"></span></div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Entrar em sala privada</h2>
+        <form id="join-form" class="stack" autocomplete="off">
+          <div class="row">
+            <label class="field"><span>Código</span><input type="text" id="join-code" maxlength="6" placeholder="ABC123" style="text-transform:uppercase; font-family: ui-monospace, Consolas, monospace"></label>
+            <label class="field"><span>Senha</span><input type="password" id="join-pass" maxlength="32" placeholder="se houver"></label>
+          </div>
+          <div class="row"><button type="submit" class="btn">Entrar</button><span id="join-msg" class="msg"></span></div>
+        </form>
+      </section>
+
+      <div class="divider">ou</div>
+      <button type="button" id="solo" class="btn ghost">Jogar sozinho</button>
+    </div>
+  </div>
+</section>
+
+<section id="gamescreen" hidden>
+  <div class="hud">
+    <div class="hud-left">
+      <span id="hud-room" class="hud-room"></span>
+      <span id="hud-code" class="hud-code"></span>
+      <span class="hud-players"><span id="hud-players">1</span> na sala</span>
+    </div>
+    <button type="button" id="leave" class="btn ghost small">Sair da sala</button>
+  </div>
+  <canvas id="game" width="960" height="540" tabindex="0" aria-label="Jogo de plataforma"></canvas>
+  <div class="hint">
+    <span><kbd>←</kbd> <kbd>→</kbd> ou <kbd>A</kbd> <kbd>D</kbd> andar</span>
+    <span><kbd>Espaço</kbd> / <kbd>↑</kbd> / <kbd>W</kbd> pular</span>
+  </div>
+  <div class="credit">Assets: Kenney · New Platformer Pack (CC0)</div>
+</section>
+
+<script src="config.js"></script>
+<script src="game.js"></script>
+<script src="lobby.js"></script>
+</body>
+</html>
