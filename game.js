@@ -15,6 +15,7 @@ const Game = (() => {
   const ENEMY_BOUNCE = 780, SPRING_SPEED = 1350;
   const STOMP_TOLERANCE = 14, CAMERA_TOP_MARGIN = 120;
   const HURT_INVULN = 1.6, HIT_ANIM = 0.45;
+  const HURT_COIN_LOSS = 15;              // moedas perdidas a cada dano
 
   // ---------- atlas / áudio ----------
   const SHEETS = ['tiles', 'enemies', 'characters', 'backgrounds'];
@@ -71,7 +72,7 @@ const Game = (() => {
   const collected = new Set();            // "r,c" das moedas pegas
   const dead = new Set();                 // índices dos inimigos derrotados
   let springs = new Map();                // "r,c" → instante em que a mola foi ativada
-  const player = { x: 0, y: 0, vx: 0, vy: 0, facing: 1, onGround: false, coyote: 0, jumpBuffer: 0, bouncing: false, animTime: 0, color: 'green', nick: '', coins: 0, gems: 0, invuln: 0, hitUntil: 0, finished: false };
+  const player = { x: 0, y: 0, vx: 0, vy: 0, facing: 1, onGround: false, coyote: 0, jumpBuffer: 0, bouncing: false, animTime: 0, color: 'green', nick: '', coins: 0, gems: 0, invuln: 0, hitUntil: 0, lossUntil: 0, lossText: '', finished: false };
   const camera = { x: 0, y: 0 };
   const remote = new Map();
   let running = false, raf = 0, last = 0, frozen = false;
@@ -121,6 +122,10 @@ const Game = (() => {
     player.lastHurt = reason || '';
     play('hurt');
     player.invuln = HURT_INVULN; player.hitUntil = HIT_ANIM;
+    // perde moedas (e o bônus de velocidade que vinha delas)
+    const lost = Math.min(HURT_COIN_LOSS, player.coins);
+    player.coins -= lost; player.gems = Math.min(player.gems, player.coins);
+    player.lossText = lost > 0 ? `−${lost}` : ''; player.lossUntil = 1.2;
     respawn();
   }
 
@@ -173,6 +178,7 @@ const Game = (() => {
     player.vy = Math.min(MAX_FALL, player.vy + GRAVITY * dt);
     player.invuln = Math.max(0, player.invuln - dt);
     player.hitUntil = Math.max(0, player.hitUntil - dt);
+    player.lossUntil = Math.max(0, player.lossUntil - dt);
     const prevY = player.y;
 
     // --- horizontal ---
@@ -351,6 +357,15 @@ const Game = (() => {
     const anim = player.hitUntil > 0 ? 'h' : !player.onGround ? 'j' : player.vx !== 0 ? 'w' : 'i';
     const blink = player.invuln > 0 && Math.floor(player.animTime * 12) % 2 === 0;
     drawCharacter(player.x, player.y, player.facing, charSprite(player.color, anim, player.animTime), player.nick, blink ? 0.35 : 1);
+    if (player.lossUntil > 0 && player.lossText) {
+      const sx = Math.round(player.x - camera.x), sy = Math.round(player.y - camera.y) - 130 - Math.round((1.2 - player.lossUntil) * 40);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, player.lossUntil * 2);
+      ctx.font = '700 22px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 5; ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(20,40,60,.7)'; ctx.fillStyle = '#ffd24a';
+      ctx.strokeText(player.lossText + ' 🪙', sx, sy); ctx.fillText(player.lossText + ' 🪙', sx, sy);
+      ctx.restore();
+    }
     drawOverlay();
     const tick = Math.ceil(-now);
     if (now < 0 && tick <= 3 && tick !== lastTick) { lastTick = tick; play('tick'); }
@@ -382,7 +397,7 @@ const Game = (() => {
     clockOffset = opts.serverNow - Date.now();
     startAt = opts.startAt;
     hooks = { onState: opts.onState, onFinish: opts.onFinish };
-    Object.assign(player, { x: level.spawnX, y: level.spawnY, vx: 0, vy: 0, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, coins: 0, gems: 0, invuln: 0, hitUntil: 0, finished: false, color: COLORS.includes(opts.color) ? opts.color : 'green', nick: opts.nick || '' });
+    Object.assign(player, { x: level.spawnX, y: level.spawnY, vx: 0, vy: 0, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, coins: 0, gems: 0, invuln: 0, hitUntil: 0, lossUntil: 0, lossText: '', finished: false, color: COLORS.includes(opts.color) ? opts.color : 'green', nick: opts.nick || '' });
     camera.x = 0; camera.y = 0; frozen = false; lastSent = ''; lastTick = 99;
     buildBackground(level.bg);
     if (!running) {

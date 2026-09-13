@@ -178,7 +178,7 @@
       const block = pick(['block_blue', 'block_green', 'block_red', 'block_yellow', 'brick_brown', 'brick_grey', 'block_planks']);
       set(gt - 1, c, block, 'solid');
       if (chance(0.5)) set(gt - 2, c, 'coin_gold', 'coin');
-      if (chance(0.4)) deco(gt - 1, c + 1, pick(['key_yellow', 'star', 'gem_green']));
+      if (chance(0.4)) { if (chance(0.5)) deco(gt - 1, c + 1, 'star'); else set(gt - 1, c + 1, 'gem_green', 'coin'); }
       x += w;
     }
     function chunkBlocks() { // fileira de blocos flutuantes com moedas em cima
