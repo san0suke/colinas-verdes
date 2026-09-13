@@ -61,6 +61,7 @@ const Game = (() => {
   const BODY_H = 96;             // altura do corpo: o sprite de 128 tem 31 px de ar em cima (topo da cabeça em y=31)
   const BOUNCE_SPEED = 1500;     // px/s — quica ~510 px (pulo normal sobe ~150 px)
   const STOMP_TOLERANCE = 14;    // px — quanto os pés podem já ter passado da cabeça no frame anterior
+  const CAMERA_TOP_MARGIN = 120; // px — a cabeça nunca chega mais perto do que isso do topo da tela
 
   // Fundo como nos exemplos do Kenney: duas faixas empilhadas, sem recortes.
   // A faixa de nuvens termina em branco e a de morros começa em branco, então
@@ -78,7 +79,7 @@ const Game = (() => {
   let loaded = null;
 
   const player = { x: 200, y: GROUND_Y, vx: 0, vy: 0, w: 56, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, animTime: 0, color: 'green', nick: '' };
-  const camera = { x: 0 };
+  const camera = { x: 0, y: 0 }; // y ≤ 0: sobe quando o jogador sai pelo topo (quique)
   const remote = new Map(); // peer -> { x, y, tx, ty, f, a, color, nick }
 
   let running = false, raf = 0, last = 0;
@@ -120,13 +121,13 @@ const Game = (() => {
     else player.jumpBuffer = Math.max(0, player.jumpBuffer - dt);
     jumpPressedThisFrame = false;
 
+    if (player.bouncing) { player.jumpBuffer = 0; player.coyote = 0; } // sem pulo durante o quique
     if (player.jumpBuffer > 0 && player.coyote > 0) {
       player.vy = -JUMP_SPEED;
       player.onGround = false;
       player.coyote = 0;
       player.jumpBuffer = 0;
     }
-    if (player.vy >= 0) player.bouncing = false;
     if (!jumpHeld() && player.vy < 0 && !player.bouncing) player.vy *= Math.pow(JUMP_CUT, dt * 60);
 
     player.vy += GRAVITY * dt;
@@ -148,7 +149,7 @@ const Game = (() => {
       }
     }
 
-    if (player.y >= GROUND_Y) { player.y = GROUND_Y; player.vy = 0; player.onGround = true; }
+    if (player.y >= GROUND_Y) { player.y = GROUND_Y; player.vy = 0; player.onGround = true; player.bouncing = false; }
     else player.onGround = false;
 
     player.x = Math.max(player.w / 2 + EDGE, Math.min(WORLD_W - player.w / 2 - EDGE, player.x));
@@ -157,6 +158,10 @@ const Game = (() => {
     const targetX = player.x - W * 0.5;
     camera.x += (targetX - camera.x) * Math.min(1, dt * 8);
     camera.x = Math.max(0, Math.min(WORLD_W - W, camera.x));
+    const targetY = Math.min(0, player.y - BODY_H - CAMERA_TOP_MARGIN);
+    if (targetY < camera.y) camera.y = targetY;
+    else camera.y += (targetY - camera.y) * Math.min(1, dt * 6);
+    if (camera.y > -0.5) camera.y = 0;
 
     // jogadores remotos: interpola até a última posição recebida
     for (const r of remote.values()) {
@@ -181,7 +186,7 @@ const Game = (() => {
       const { pattern, width, height } = bg[layer.key];
       const off = -Math.round((camera.x * layer.factor) % width);
       ctx.save();
-      ctx.translate(off, layer.top);
+      ctx.translate(off, layer.top - Math.round(camera.y * layer.factor));
       ctx.fillStyle = pattern;
       ctx.fillRect(-off, 0, W, height);
       ctx.restore();
@@ -194,7 +199,7 @@ const Game = (() => {
     for (let col = startCol; col <= endCol; col++) {
       const sx = Math.round(col * TILE - camera.x);
       for (let row = 0; row < GROUND_ROWS; row++) {
-        ctx.drawImage(row === 0 ? img.groundTop : img.groundMid, sx, GROUND_Y + row * TILE, TILE, TILE);
+        ctx.drawImage(row === 0 ? img.groundTop : img.groundMid, sx, Math.round(GROUND_Y - camera.y) + row * TILE, TILE, TILE);
       }
     }
   }
@@ -207,7 +212,7 @@ const Game = (() => {
   }
 
   function drawCharacter(x, y, facing, sprite, nick, dim) {
-    const sx = Math.round(x - camera.x), sy = Math.round(y);
+    const sx = Math.round(x - camera.x), sy = Math.round(y - camera.y);
     if (sx < -200 || sx > W + 200) return;
     ctx.save();
     if (dim) ctx.globalAlpha = 0.9;
@@ -267,6 +272,7 @@ const Game = (() => {
     const x = Number.isFinite(spawnX) ? spawnX : WORLD_W / 2 + (Math.random() - 0.5) * 160;
     Object.assign(player, { x, y: GROUND_Y, vx: 0, vy: 0, facing: 1, onGround: true, color: COLORS.includes(color) ? color : 'green', nick: nick || '' });
     camera.x = Math.max(0, Math.min(WORLD_W - W, player.x - W * 0.5));
+    camera.y = 0;
     remote.clear();
     onState = cb || null;
     lastSent = '';
