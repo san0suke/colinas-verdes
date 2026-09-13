@@ -109,8 +109,28 @@
   .hud-left { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
   .hud-room { font-family: Fredoka, sans-serif; font-weight: 600; font-size: 20px; }
   .hud-code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; color: var(--muted); }
-  .hud-players { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  canvas#game { width: min(960px, 96vw); aspect-ratio: 16 / 9; display: block; border-radius: 6px; box-shadow: 0 14px 40px rgba(10,30,50,.35); outline: none; }
+  .hud-players, .hud-stat { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .hud-stat { font-weight: 700; color: var(--ink); }
+  .hud-note { font-size: 13px; color: var(--grass-dark); font-weight: 700; }
+  #touch-hud { position: absolute; left: max(16px, env(safe-area-inset-left)); top: max(12px, env(safe-area-inset-top)); color: #fff; font: 700 15px Nunito, sans-serif; text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none; }
+
+  /* ---------- Placar ---------- */
+  .results { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(10,22,40,.55); z-index: 20; padding: 16px; }
+  .results-card { background: var(--panel); color: var(--ink); border-radius: 18px; padding: 22px 26px; width: min(440px, 100%); box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+  .results-card h2 { font-size: 28px; margin-bottom: 12px; text-align: center; }
+  .results-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .result { display: grid; grid-template-columns: 40px 1fr auto auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--panel-2); font-variant-numeric: tabular-nums; }
+  .result.me { outline: 2px solid var(--grass); }
+  .result .place { font-family: Fredoka, sans-serif; font-weight: 700; font-size: 20px; }
+  .result .who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .result .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+  .result .time { font-weight: 700; }
+  .result .coins { color: var(--muted); font-size: 13px; }
+  .avatar { width: 16px; height: 16px; border-radius: 50%; flex: none; background: #3fbf6a; border: 2px solid rgba(0,0,0,.15); }
+  .avatar[data-color="beige"] { background: #e8c9a0; } .avatar[data-color="pink"] { background: #f08bc0; }
+  .avatar[data-color="purple"] { background: #a06be0; } .avatar[data-color="yellow"] { background: #f3cf3a; }
+  .results-next { text-align: center; color: var(--muted); margin: 14px 0 0; font-weight: 700; }
+  canvas#game { width: min(960px, 96vw); aspect-ratio: 5 / 3; display: block; border-radius: 6px; box-shadow: 0 14px 40px rgba(10,30,50,.35); outline: none; }
   canvas#game:focus-visible { box-shadow: 0 0 0 3px var(--grass), 0 14px 40px rgba(10,30,50,.35); }
   .hint { color: var(--muted); font-size: 14px; display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
   kbd { font: 12px ui-monospace, Consolas, monospace; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; }
@@ -126,7 +146,7 @@
   .touch #gamescreen { position: fixed; inset: 0; padding: 0; gap: 0; background: #0b1220; }
   .touch #gamescreen .hud, .touch #gamescreen .hint, .touch #gamescreen .credit { display: none; }
   .touch canvas#game {
-    width: min(100vw, calc(100vh * 16 / 9)); height: min(100vh, calc(100vw * 9 / 16));
+    width: min(100vw, calc(100vh * 5 / 3)); height: min(100vh, calc(100vw * 3 / 5));
     aspect-ratio: auto; border-radius: 0; box-shadow: none; touch-action: none;
   }
   #touch-ui { display: none; }
@@ -218,13 +238,18 @@
       <span id="hud-room" class="hud-room"></span>
       <span id="hud-code" class="hud-code"></span>
       <span class="hud-players"><span id="hud-players">1</span> na sala</span>
+      <span class="hud-stat">⏱ <span id="hud-time">0.0 s</span></span>
+      <span class="hud-stat">🪙 <span id="hud-coins">0</span></span>
+      <span class="hud-stat">🏁 <span id="hud-finished">0/1</span></span>
+      <span id="hud-note" class="hud-note"></span>
     </div>
     <button type="button" id="leave" class="btn ghost small">Sair da sala</button>
   </div>
-  <canvas id="game" width="960" height="540" tabindex="0" aria-label="Jogo de plataforma"></canvas>
+  <canvas id="game" width="960" height="576" tabindex="0" aria-label="Corrida de plataforma"></canvas>
   <div class="hint">
     <span><kbd>←</kbd> <kbd>→</kbd> ou <kbd>A</kbd> <kbd>D</kbd> andar</span>
     <span><kbd>Espaço</kbd> / <kbd>↑</kbd> / <kbd>W</kbd> pular</span>
+    <span>Corra até a bandeira 🏁 · pule nos inimigos · molas dão impulso</span>
   </div>
   <div class="credit">Assets: Kenney · New Platformer Pack (CC0)</div>
   <div id="touch-ui">
@@ -232,12 +257,21 @@
     <button type="button" id="jump" aria-label="Pular">PULAR</button>
     <button type="button" id="touch-leave" class="btn ghost small">Sair</button>
     <div id="rotate-note">Gire o celular para jogar na horizontal</div>
+    <div id="touch-hud">⏱ <span id="touch-time">0.0 s</span> &nbsp; 🪙 <span id="touch-coins">0</span></div>
+  </div>
+  <div id="results" class="results" hidden>
+    <div class="results-card">
+      <h2>Placar</h2>
+      <ol id="results-list" class="results-list"></ol>
+      <p id="results-next" class="results-next"></p>
+    </div>
   </div>
 </section>
 
-<script src="config.js?v=f8b73b2"></script>
-<script src="game.js?v=f8b73b2"></script>
-<script src="lobby.js?v=f8b73b2"></script>
-<script src="touch.js?v=f8b73b2"></script>
+<script src="config.js?v=77d99b5"></script>
+<script src="level.js?v=77d99b5"></script>
+<script src="game.js?v=77d99b5"></script>
+<script src="lobby.js?v=77d99b5"></script>
+<script src="touch.js?v=77d99b5"></script>
 </body>
 </html>

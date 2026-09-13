@@ -1,95 +1,92 @@
-// Motor do jogo: chão + personagem com pulo + fundo parallax + jogadores remotos
-// Assets: Kenney "New Platformer Pack" (CC0) — https://kenney.nl/assets/new-platformer-pack
+// Motor do jogo: fase procedural (level.js), física com a grade de tiles, inimigos,
+// moedas, molas, corrida com contagem regressiva e jogadores remotos.
+// Assets: Kenney "New Platformer Pack" (CC0) — spritesheets em assets/sheets.
 
 const Game = (() => {
   const COLORS = ['green', 'beige', 'pink', 'purple', 'yellow'];
-  const POSES = { idle: 'idle', jump: 'jump', walkA: 'walk_a', walkB: 'walk_b' };
+  const TILE = 64;
+  const W = 960, H = 576;
 
-  const ASSETS = {
-    clouds:    'assets/bg/background_clouds.png',
-    hillsFar:  'assets/bg/background_fade_hills.png',
-    groundTop: 'assets/tiles/terrain_grass_block_top.png',
-    groundMid: 'assets/tiles/terrain_grass_block_center.png',
-  };
-  const CHAR_ASSETS = {
-    green:  { idle: 'assets/char/character_green_idle.png',  jump: 'assets/char/character_green_jump.png',  walkA: 'assets/char/character_green_walk_a.png',  walkB: 'assets/char/character_green_walk_b.png' },
-    beige:  { idle: 'assets/char/character_beige_idle.png',  jump: 'assets/char/character_beige_jump.png',  walkA: 'assets/char/character_beige_walk_a.png',  walkB: 'assets/char/character_beige_walk_b.png' },
-    pink:   { idle: 'assets/char/character_pink_idle.png',   jump: 'assets/char/character_pink_jump.png',   walkA: 'assets/char/character_pink_walk_a.png',   walkB: 'assets/char/character_pink_walk_b.png' },
-    purple: { idle: 'assets/char/character_purple_idle.png', jump: 'assets/char/character_purple_jump.png', walkA: 'assets/char/character_purple_walk_a.png', walkB: 'assets/char/character_purple_walk_b.png' },
-    yellow: { idle: 'assets/char/character_yellow_idle.png', jump: 'assets/char/character_yellow_jump.png', walkA: 'assets/char/character_yellow_walk_a.png', walkB: 'assets/char/character_yellow_walk_b.png' },
-  };
+  // ---------- física ----------
+  const GRAVITY = 2200, MAX_FALL = 1400;
+  const MOVE_SPEED = 340, JUMP_SPEED = 820, JUMP_CUT = 0.45, COYOTE_TIME = 0.08, JUMP_BUFFER = 0.10;
+  const HW = 24, BH = 96;                 // meia-largura e altura da caixa do jogador (pés em y)
+  const BOUNCE_SPEED = 1500;              // quique em cima de outro jogador
+  const ENEMY_BOUNCE = 780, SPRING_SPEED = 1350;
+  const STOMP_TOLERANCE = 14, CAMERA_TOP_MARGIN = 120;
+  const HURT_INVULN = 1.6, HIT_ANIM = 0.45;
+
+  // ---------- atlas / áudio ----------
+  const SHEETS = ['tiles', 'enemies', 'characters', 'backgrounds'];
+  const atlas = new Map();                // nome → { img, x, y, w, h }
+  const SOUNDS = { jump: 'sfx_jump', coin: 'sfx_coin', gem: 'sfx_gem', hurt: 'sfx_hurt', bump: 'sfx_bump', spring: 'sfx_jump-high', finish: 'sfx_magic', pop: 'sfx_disappear', tick: 'sfx_select' };
+  const sounds = {};
+  let muted = false;
+  function play(name) {
+    if (muted || !sounds[name]) return;
+    try { const a = sounds[name].cloneNode(); a.volume = 0.5; a.play().catch(() => {}); } catch {}
+  }
 
   function loadImage(src) {
-    return new Promise((res, rej) => {
-      const img = new Image();
-      img.onload = () => res(img);
-      img.onerror = () => rej(new Error('Falha ao carregar ' + src.slice(0, 40)));
-      img.src = src;
-    });
+    return new Promise((res, rej) => { const img = new Image(); img.onload = () => res(img); img.onerror = () => rej(new Error('Falha ao carregar ' + src)); img.src = src; });
+  }
+  async function loadSheet(name) {
+    const base = `assets/sheets/spritesheet-${name}-default`;
+    const [img, xml] = await Promise.all([loadImage(base + '.png'), fetch(base + '.xml').then((r) => r.text())]);
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    for (const el of doc.querySelectorAll('SubTexture')) {
+      atlas.set(el.getAttribute('name'), { img, x: +el.getAttribute('x'), y: +el.getAttribute('y'), w: +el.getAttribute('width'), h: +el.getAttribute('height') });
+    }
+  }
+  function draw(name, dx, dy, flip) {
+    const s = atlas.get(name);
+    if (!s) return;
+    if (flip) { ctx.save(); ctx.translate(dx + s.w, dy); ctx.scale(-1, 1); ctx.drawImage(s.img, s.x, s.y, s.w, s.h, 0, 0, s.w, s.h); ctx.restore(); }
+    else ctx.drawImage(s.img, s.x, s.y, s.w, s.h, dx, dy, s.w, s.h);
   }
 
-  // Pré-escala a imagem uma única vez e cria um pattern repetido na horizontal (os tiles
-  // de fundo do pack têm 256 px e emendam perfeitamente).
-  function makeLayer(ctx, img, scale) {
+  // ---------- fundo (dois tiles empilhados, como nos exemplos do Kenney) ----------
+  const SKY_COLOR = 'rgb(195,227,255)';
+  const BG_SCALE = 1.5;
+  let bgLayers = [];
+  function makeStrip(name) {
+    const s = atlas.get(name);
     const c = document.createElement('canvas');
-    c.width = Math.round(img.width * scale);
-    c.height = Math.round(img.height * scale);
+    c.width = Math.round(s.w * BG_SCALE); c.height = Math.round(s.h * BG_SCALE);
     const g = c.getContext('2d');
     g.imageSmoothingEnabled = true;
-    g.drawImage(img, 0, 0, c.width, c.height);
+    g.drawImage(s.img, s.x, s.y, s.w, s.h, 0, 0, c.width, c.height);
     return { pattern: ctx.createPattern(c, 'repeat-x'), width: c.width, height: c.height };
   }
+  function buildBackground(bg) {
+    bgLayers = [
+      { ...makeStrip('background_fade_' + bg), factor: 0.30, top: H - 417 }, // crista dos morros ≈ 36 px acima do chão
+      { ...makeStrip('background_clouds'), factor: 0.10, top: H - 630 },
+    ];
+  }
 
-  // ---------- Mundo ----------
-  const W = 960, H = 540;
-  const TILE = 64;
-  const GROUND_ROWS = 2;
-  const GROUND_Y = H - TILE * GROUND_ROWS; // topo do chão
-  const WORLD_COLS = 25;                   // largura do mapa em tiles (finito)
-  const WORLD_W = WORLD_COLS * TILE;       // 1600 px ≈ 1,7 telas
-  const EDGE = 12;                         // margem para o sprite não vazar na borda
+  // ---------- estado ----------
+  let canvas, ctx, loaded = null;
+  let level = null;
+  const collected = new Set();            // "r,c" das moedas pegas
+  const dead = new Set();                 // índices dos inimigos derrotados
+  let springs = new Map();                // "r,c" → instante em que a mola foi ativada
+  const player = { x: 0, y: 0, vx: 0, vy: 0, facing: 1, onGround: false, coyote: 0, jumpBuffer: 0, bouncing: false, animTime: 0, color: 'green', nick: '', coins: 0, invuln: 0, hitUntil: 0, finished: false };
+  const camera = { x: 0, y: 0 };
+  const remote = new Map();
+  let running = false, raf = 0, last = 0, frozen = false;
+  let startAt = 0, clockOffset = 0;       // startAt em relógio do servidor; clockOffset = servidor − local
+  let hooks = {};
+  let lastSent = '';
+  let now = 0;                            // tempo da corrida (s), pode ser negativo na contagem
 
-  const GRAVITY = 2200;      // px/s²
-  const MOVE_SPEED = 320;    // px/s
-  const JUMP_SPEED = 820;    // px/s
-  const JUMP_CUT = 0.45;     // multiplicador ao soltar o pulo cedo
-  const COYOTE_TIME = 0.08;  // s
-  const JUMP_BUFFER = 0.10;  // s
+  const serverNow = () => Date.now() + clockOffset;
+  const raceTime = () => (serverNow() - startAt) / 1000;
 
-  // quique ao cair em cima de outro jogador
-  const BODY_W = 52;             // largura considerada para "estar em cima" (px)
-  const BODY_H = 96;             // altura do corpo: o sprite de 128 tem 31 px de ar em cima (topo da cabeça em y=31)
-  const BOUNCE_SPEED = 1500;     // px/s — quica ~510 px (pulo normal sobe ~150 px)
-  const STOMP_TOLERANCE = 14;    // px — quanto os pés podem já ter passado da cabeça no frame anterior
-  const CAMERA_TOP_MARGIN = 120; // px — a cabeça nunca chega mais perto do que isso do topo da tela
-
-  // Fundo como nos exemplos do Kenney: duas faixas empilhadas, sem recortes.
-  // A faixa de nuvens termina em branco e a de morros começa em branco, então
-  // podem se mover em velocidades diferentes que a emenda continua invisível.
-  // `top`: y da borda superior da faixa no canvas (escala 1,5 → faixas de 384 px).
-  const SKY_COLOR = 'rgb(195,227,255)'; // mesma cor do topo do tile de nuvens
-  const PARALLAX = [
-    { key: 'hillsFar', factor: 0.30, scale: 1.5, top: 159 }, // morros: crista em ~330, chão em 412
-    { key: 'clouds',   factor: 0.10, scale: 1.5, top: -54 }, // nuvens: base branca encosta na crista
-  ];
-
-  // ---------- Estado ----------
-  let canvas, ctx;
-  let img = {}, chars = {}, bg = {};
-  let loaded = null;
-
-  const player = { x: 200, y: GROUND_Y, vx: 0, vy: 0, w: 56, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, animTime: 0, color: 'green', nick: '' };
-  const camera = { x: 0, y: 0 }; // y ≤ 0: sobe quando o jogador sai pelo topo (quique)
-  const remote = new Map(); // peer -> { x, y, tx, ty, f, a, color, nick }
-
-  let running = false, raf = 0, last = 0;
-  let onState = null, lastSent = '';
-
-  // ---------- Input ----------
+  // ---------- input ----------
   const keys = new Set();
   let jumpPressedThisFrame = false;
   const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW'];
-
   function onKeyDown(e) {
     if (e.target && e.target.tagName === 'INPUT') return;
     if (JUMP_KEYS.includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
@@ -98,204 +95,299 @@ const Game = (() => {
   }
   function onKeyUp(e) { keys.delete(e.code); }
   function onBlur() { keys.clear(); }
-
-  // entrada virtual (joystick e botão de pulo no celular), somada ao teclado
   const virt = { left: false, right: false, jump: false };
-  function setVirtualInput(patch) {
-    if (patch.jump && !virt.jump) jumpPressedThisFrame = true;
-    Object.assign(virt, patch);
-  }
-
+  function setVirtualInput(patch) { if (patch.jump && !virt.jump) jumpPressedThisFrame = true; Object.assign(virt, patch); }
   const jumpHeld = () => virt.jump || JUMP_KEYS.some((k) => keys.has(k));
   const leftHeld = () => virt.left || keys.has('ArrowLeft') || keys.has('KeyA');
   const rightHeld = () => virt.right || keys.has('ArrowRight') || keys.has('KeyD');
 
-  // ---------- Update ----------
+  // ---------- grade ----------
+  const cellAt = (r, c) => (level.cells[r] && level.cells[r][c]) || null;
+  const isCollected = (r, c) => collected.has(r + ',' + c);
+  function groundTopAt(col) { // y do topo do primeiro sólido da coluna (para renascer)
+    for (let r = 0; r < level.rows; r++) { const x = cellAt(r, col); if (x && (x.k === 'solid' || x.k === 'oneway')) return r * TILE; }
+    return Level.GROUND * TILE;
+  }
+  function respawn() {
+    let cx = level.spawnX;
+    for (const c of level.checkpoints) if (c <= player.x && c > cx) cx = c;
+    player.x = cx; player.y = groundTopAt(Math.floor(cx / TILE));
+    player.vx = 0; player.vy = 0; player.bouncing = false;
+  }
+  function hurt(reason) {
+    if (player.invuln > 0) return;
+    player.lastHurt = reason || '';
+    play('hurt');
+    player.invuln = HURT_INVULN; player.hitUntil = HIT_ANIM;
+    respawn();
+  }
+
+  // ---------- inimigos (movimento determinístico em função do tempo) ----------
+  const tri = (t) => { const p = ((t % 2) + 2) % 2; return p < 1 ? p : 2 - p; };
+  function enemyPose(e, t) {
+    if (e.kind === 'walker' || e.kind === 'flyer') {
+      const span = e.x1 - e.x0;
+      const u = (t * e.speed) / span + e.phase;
+      const dir = ((u % 2) + 2) % 2 < 1 ? 1 : -1;
+      const x = e.x0 + tri(u) * span;
+      if (e.kind === 'walker') return { x, y: e.y, dir };
+      return { x, y: e.y + 32 + Math.sin(t * 2.2 + e.phase) * e.amp, dir };
+    }
+    if (e.kind === 'fish') {
+      const up = Math.max(0, Math.sin(t * e.speed + e.phase));
+      return { x: e.x, y: e.y + 40 - up * 190, dir: 1, jumping: up > 0.05 };
+    }
+    return { x: e.x0, y: e.y, dir: 1 };
+  }
+  function enemySprite(e, t) {
+    const f = Math.floor(t * 6) % 2 ? 'a' : 'b';
+    switch (e.type) {
+      case 'saw': return `saw_${f}`;
+      case 'bee': case 'fly': return `${e.type}_${f}`;
+      case 'fish_blue': case 'fish_yellow': return `${e.type}_swim_${f}`;
+      case 'frog': return Math.floor(t * 2) % 2 ? 'frog_idle' : 'frog_jump';
+      case 'ladybug': case 'mouse': case 'snail': return `${e.type}_walk_${f}`;
+      case 'worm_normal': case 'worm_ring': return `${e.type}_move_${f}`;
+      default: return `${e.type}_walk_${f}`; // slimes
+    }
+  }
+
+  // ---------- update ----------
   function update(dt) {
-    const dir = (rightHeld() ? 1 : 0) - (leftHeld() ? 1 : 0);
+    now = raceTime();
+    const active = now >= 0 && !frozen;
+    const dir = active ? (rightHeld() ? 1 : 0) - (leftHeld() ? 1 : 0) : 0;
     player.vx = dir * MOVE_SPEED;
     if (dir !== 0) player.facing = dir;
+    if (!active) { jumpPressedThisFrame = false; player.jumpBuffer = 0; }
 
     player.coyote = player.onGround ? COYOTE_TIME : Math.max(0, player.coyote - dt);
-    if (jumpPressedThisFrame) player.jumpBuffer = JUMP_BUFFER;
-    else player.jumpBuffer = Math.max(0, player.jumpBuffer - dt);
+    if (jumpPressedThisFrame) player.jumpBuffer = JUMP_BUFFER; else player.jumpBuffer = Math.max(0, player.jumpBuffer - dt);
     jumpPressedThisFrame = false;
-
-    if (player.bouncing) { player.jumpBuffer = 0; player.coyote = 0; } // sem pulo durante o quique
-    if (player.jumpBuffer > 0 && player.coyote > 0) {
-      player.vy = -JUMP_SPEED;
-      player.onGround = false;
-      player.coyote = 0;
-      player.jumpBuffer = 0;
-    }
+    if (player.bouncing) { player.jumpBuffer = 0; player.coyote = 0; }
+    if (player.jumpBuffer > 0 && player.coyote > 0) { player.vy = -JUMP_SPEED; player.onGround = false; player.coyote = 0; player.jumpBuffer = 0; play('jump'); }
     if (!jumpHeld() && player.vy < 0 && !player.bouncing) player.vy *= Math.pow(JUMP_CUT, dt * 60);
 
-    player.vy += GRAVITY * dt;
+    player.vy = Math.min(MAX_FALL, player.vy + GRAVITY * dt);
+    player.invuln = Math.max(0, player.invuln - dt);
+    player.hitUntil = Math.max(0, player.hitUntil - dt);
     const prevY = player.y;
-    player.x += player.vx * dt;
-    player.y += player.vy * dt;
 
-    // pisou na cabeça de outro jogador: quica para cima (efeito "pinball")
+    // --- horizontal ---
+    player.x += player.vx * dt;
+    player.x = Math.max(HW, Math.min(level.width - HW, player.x));
+    {
+      const r0 = Math.max(0, Math.floor((player.y - BH + 2) / TILE)), r1 = Math.min(level.rows - 1, Math.floor((player.y - 2) / TILE));
+      const c0 = Math.floor((player.x - HW) / TILE), c1 = Math.floor((player.x + HW) / TILE);
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+        const cell = cellAt(r, c);
+        if (!cell || cell.k !== 'solid') continue;
+        if (player.vx > 0) player.x = c * TILE - HW; else if (player.vx < 0) player.x = (c + 1) * TILE + HW;
+      }
+    }
+    // --- vertical ---
+    player.y += player.vy * dt;
+    player.onGround = false;
+    if (player.vy >= 0) {
+      const c0 = Math.floor((player.x - HW + 4) / TILE), c1 = Math.floor((player.x + HW - 4) / TILE);
+      const r0 = Math.max(0, Math.floor((prevY - 1) / TILE)), r1 = Math.min(level.rows - 1, Math.floor(player.y / TILE));
+      for (let r = r0; r <= r1 && !player.onGround; r++) for (let c = c0; c <= c1; c++) {
+        const cell = cellAt(r, c);
+        if (!cell) continue;
+        const top = r * TILE;
+        if (cell.k === 'solid' || ((cell.k === 'oneway' || cell.k === 'spring') && prevY <= top + 6)) {
+          if (player.y >= top) {
+            player.y = top; player.vy = 0; player.onGround = true; player.bouncing = false;
+            if (cell.k === 'spring') { player.vy = -SPRING_SPEED; player.onGround = false; player.bouncing = true; springs.set(r + ',' + c, now); play('spring'); }
+            break;
+          }
+        }
+      }
+    } else {
+      const c0 = Math.floor((player.x - HW + 4) / TILE), c1 = Math.floor((player.x + HW - 4) / TILE);
+      const r = Math.floor((player.y - BH) / TILE);
+      for (let c = c0; c <= c1; c++) {
+        const cell = cellAt(r, c);
+        if (cell && cell.k === 'solid') { player.y = (r + 1) * TILE + BH; player.vy = 0; play('bump'); break; }
+      }
+    }
+
+    // --- moedas, perigos ---
+    {
+      const c0 = Math.floor((player.x - HW + 6) / TILE), c1 = Math.floor((player.x + HW - 6) / TILE);
+      const r0 = Math.max(0, Math.floor((player.y - BH + 8) / TILE)), r1 = Math.min(level.rows - 1, Math.floor((player.y - 8) / TILE));
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+        const cell = cellAt(r, c);
+        if (!cell) continue;
+        if (cell.k === 'coin' && !isCollected(r, c)) { collected.add(r + ',' + c); player.coins++; play(cell.s.startsWith('gem') ? 'gem' : 'coin'); }
+        else if (cell.k === 'hazard') hurt('hazard ' + cell.s + ' r' + r + ' c' + c);
+      }
+    }
+    // --- inimigos ---
+    const t = Math.max(0, now);
+    level.entities.forEach((e, i) => {
+      if (dead.has(i)) return;
+      const p = enemyPose(e, t);
+      if (e.kind === 'fish' && !p.jumping) return;
+      const ex0 = p.x - 22, ex1 = p.x + 22, ey0 = p.y - 46, ey1 = p.y - 4;
+      if (player.x + HW - 6 < ex0 || player.x - HW + 6 > ex1 || player.y - 6 < ey0 || player.y - BH + 6 > ey1) return;
+      const stomp = player.vy > 0 && prevY <= ey0 + STOMP_TOLERANCE + 10;
+      if (stomp && !level.hurtOnStomp.some((k) => e.type.startsWith(k))) {
+        dead.add(i); player.vy = -ENEMY_BOUNCE; player.y = ey0; player.bouncing = true; play('pop');
+      } else hurt('enemy ' + e.type);
+    });
+    // --- quique em cima de outro jogador ---
     if (player.vy > 0) {
       for (const r of remote.values()) {
-        const headY = r.y - BODY_H;
-        if (Math.abs(player.x - r.x) < BODY_W && prevY <= headY + STOMP_TOLERANCE && player.y >= headY) {
-          player.y = headY;
-          player.vy = -BOUNCE_SPEED;
-          player.bouncing = true; // sobe inteiro mesmo sem segurar o pulo
-          player.coyote = 0;
-          break;
+        const headY = r.y - BH;
+        if (Math.abs(player.x - r.x) < 2 * HW + 4 && prevY <= headY + STOMP_TOLERANCE && player.y >= headY) {
+          player.y = headY; player.vy = -BOUNCE_SPEED; player.bouncing = true; player.coyote = 0; play('bump'); break;
         }
       }
     }
+    if (player.y > level.height + 160) hurt('fall');
 
-    if (player.y >= GROUND_Y) { player.y = GROUND_Y; player.vy = 0; player.onGround = true; player.bouncing = false; }
-    else player.onGround = false;
+    // --- chegada ---
+    if (!player.finished && now > 0 && player.x >= level.finishX) { player.finished = true; play('finish'); if (hooks.onFinish) hooks.onFinish({ coins: player.coins, time: now }); }
 
-    player.x = Math.max(player.w / 2 + EDGE, Math.min(WORLD_W - player.w / 2 - EDGE, player.x));
     player.animTime += dt;
 
-    const targetX = player.x - W * 0.5;
+    // --- câmera ---
+    const targetX = player.x - W * 0.45;
     camera.x += (targetX - camera.x) * Math.min(1, dt * 8);
-    camera.x = Math.max(0, Math.min(WORLD_W - W, camera.x));
-    const targetY = Math.min(0, player.y - BODY_H - CAMERA_TOP_MARGIN);
-    if (targetY < camera.y) camera.y = targetY;
-    else camera.y += (targetY - camera.y) * Math.min(1, dt * 6);
+    camera.x = Math.max(0, Math.min(level.width - W, camera.x));
+    const targetY = Math.min(0, player.y - BH - CAMERA_TOP_MARGIN);
+    if (targetY < camera.y) camera.y = targetY; else camera.y += (targetY - camera.y) * Math.min(1, dt * 6);
     if (camera.y > -0.5) camera.y = 0;
 
-    // jogadores remotos: interpola até a última posição recebida
-    for (const r of remote.values()) {
-      r.x += (r.tx - r.x) * Math.min(1, dt * 14);
-      r.y += (r.ty - r.y) * Math.min(1, dt * 14);
-    }
+    for (const r of remote.values()) { r.x += (r.tx - r.x) * Math.min(1, dt * 14); r.y += (r.ty - r.y) * Math.min(1, dt * 14); }
 
-    // publica o próprio estado só quando muda (a plataforma coalesce a ~30/s)
-    if (onState) {
-      const a = !player.onGround ? 'j' : player.vx !== 0 ? 'w' : 'i';
-      const state = { x: Math.round(player.x), y: Math.round(player.y), f: player.facing, a };
-      const key = `${state.x},${state.y},${state.f},${state.a}`;
-      if (key !== lastSent) { lastSent = key; onState(state); }
+    if (hooks.onState) {
+      const a = player.hitUntil > 0 ? 'h' : !player.onGround ? 'j' : player.vx !== 0 ? 'w' : 'i';
+      const s = { x: Math.round(player.x), y: Math.round(player.y), f: player.facing, a };
+      const key = `${s.x},${s.y},${s.f},${s.a}`;
+      if (key !== lastSent) { lastSent = key; hooks.onState(s); }
     }
   }
 
-  // ---------- Render ----------
-  function drawParallax() {
-    ctx.fillStyle = SKY_COLOR;
-    ctx.fillRect(0, 0, W, H);
-    for (const layer of PARALLAX) {
-      const { pattern, width, height } = bg[layer.key];
-      const off = -Math.round((camera.x * layer.factor) % width);
-      ctx.save();
-      ctx.translate(off, layer.top - Math.round(camera.y * layer.factor));
-      ctx.fillStyle = pattern;
-      ctx.fillRect(-off, 0, W, height);
-      ctx.restore();
+  // ---------- render ----------
+  function drawBackground() {
+    ctx.fillStyle = SKY_COLOR; ctx.fillRect(0, 0, W, H);
+    for (const l of bgLayers) {
+      const off = -Math.round((camera.x * l.factor) % l.width);
+      ctx.save(); ctx.translate(off, l.top - Math.round(camera.y * l.factor)); ctx.fillStyle = l.pattern; ctx.fillRect(-off, 0, W, l.height); ctx.restore();
     }
   }
-
-  function drawGround() {
-    const startCol = Math.max(0, Math.floor(camera.x / TILE) - 1);
-    const endCol = Math.min(WORLD_COLS - 1, Math.ceil((camera.x + W) / TILE) + 1);
-    for (let col = startCol; col <= endCol; col++) {
-      const sx = Math.round(col * TILE - camera.x);
-      for (let row = 0; row < GROUND_ROWS; row++) {
-        ctx.drawImage(row === 0 ? img.groundTop : img.groundMid, sx, Math.round(GROUND_Y - camera.y) + row * TILE, TILE, TILE);
-      }
+  function drawLevel() {
+    const cx = Math.round(camera.x), cy = Math.round(camera.y);
+    const c0 = Math.max(0, Math.floor(cx / TILE)), c1 = Math.min(level.cols - 1, Math.ceil((cx + W) / TILE));
+    const blink = Math.floor(now * 4) % 2;
+    for (let r = 0; r < level.rows; r++) for (let c = c0; c <= c1; c++) {
+      const cell = cellAt(r, c);
+      if (!cell) continue;
+      let s = cell.s;
+      if (cell.k === 'coin') { if (isCollected(r, c)) continue; if (blink && s.startsWith('coin')) s += '_side'; }
+      else if (cell.k === 'spring') { const at = springs.get(r + ',' + c); if (at !== undefined && now - at < 0.25) s = 'spring_out'; }
+      else if (s === 'torch_on_a' && blink) s = 'torch_on_b';
+      else if (s === 'flag_red_a' && blink) s = 'flag_red_b';
+      else if (s === 'flag_green_a' && blink) s = 'flag_green_b';
+      draw(s, c * TILE - cx, r * TILE - cy);
     }
   }
-
-  function spriteFor(color, anim, t) {
-    const set = chars[color] || chars.green;
-    if (anim === 'j') return set.jump;
-    if (anim === 'w') return Math.floor(t * 8) % 2 ? set.walkA : set.walkB;
-    return set.idle;
+  function drawEnemies() {
+    const t = Math.max(0, now);
+    level.entities.forEach((e, i) => {
+      if (dead.has(i)) return;
+      const p = enemyPose(e, t);
+      if (p.x < camera.x - 80 || p.x > camera.x + W + 80) return;
+      draw(enemySprite(e, t), Math.round(p.x - 32 - camera.x), Math.round(p.y - 64 - camera.y), p.dir > 0);
+    });
   }
-
-  function drawCharacter(x, y, facing, sprite, nick, dim) {
+  function charSprite(color, anim, t) {
+    const c = COLORS.includes(color) ? color : 'green';
+    if (anim === 'h') return `character_${c}_hit`;
+    if (anim === 'j') return `character_${c}_jump`;
+    if (anim === 'w') return Math.floor(t * 8) % 2 ? `character_${c}_walk_a` : `character_${c}_walk_b`;
+    return `character_${c}_idle`;
+  }
+  function drawCharacter(x, y, facing, sprite, nick, alpha) {
     const sx = Math.round(x - camera.x), sy = Math.round(y - camera.y);
-    if (sx < -200 || sx > W + 200) return;
+    if (sx < -150 || sx > W + 150) return;
     ctx.save();
-    if (dim) ctx.globalAlpha = 0.9;
-    ctx.translate(sx, sy);
-    if (facing < 0) ctx.scale(-1, 1);
-    ctx.drawImage(sprite, -sprite.width / 2, -sprite.height, sprite.width, sprite.height);
+    ctx.globalAlpha = alpha;
+    draw(sprite, sx - 64, sy - 128, facing < 0);
     ctx.restore();
     if (nick) {
       ctx.save();
-      ctx.font = '600 14px Nunito, system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.lineWidth = 4; ctx.lineJoin = 'round';
+      ctx.font = '600 14px Nunito, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.lineJoin = 'round';
       ctx.strokeStyle = 'rgba(20,40,60,.55)'; ctx.fillStyle = '#fff';
-      ctx.strokeText(nick, sx, sy - sprite.height - 8);
-      ctx.fillText(nick, sx, sy - sprite.height - 8);
+      ctx.strokeText(nick, sx, sy - 104); ctx.fillText(nick, sx, sy - 104);
       ctx.restore();
     }
   }
-
+  function drawOverlay() {
+    if (now >= 1 || now < -4) return;
+    const label = now < 0 ? String(Math.ceil(-now)) : 'VAI!';
+    ctx.save();
+    ctx.font = '700 96px Fredoka, Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 10; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(15,61,33,.8)'; ctx.fillStyle = now < 0 ? '#fff' : '#62d37a';
+    ctx.strokeText(label, W / 2, H * 0.38); ctx.fillText(label, W / 2, H * 0.38);
+    ctx.restore();
+  }
+  let lastTick = 99;
   function render() {
-    drawParallax();
-    drawGround();
+    drawBackground(); drawLevel(); drawEnemies();
     const t = performance.now() / 1000;
-    for (const r of remote.values()) drawCharacter(r.x, r.y, r.f, spriteFor(r.color, r.a, t), r.nick, true);
-    const anim = !player.onGround ? 'j' : player.vx !== 0 ? 'w' : 'i';
-    drawCharacter(player.x, player.y, player.facing, spriteFor(player.color, anim, player.animTime), player.nick, false);
+    for (const r of remote.values()) drawCharacter(r.x, r.y, r.f, charSprite(r.color, r.a, t), r.nick, 0.92);
+    const anim = player.hitUntil > 0 ? 'h' : !player.onGround ? 'j' : player.vx !== 0 ? 'w' : 'i';
+    const blink = player.invuln > 0 && Math.floor(player.animTime * 12) % 2 === 0;
+    drawCharacter(player.x, player.y, player.facing, charSprite(player.color, anim, player.animTime), player.nick, blink ? 0.35 : 1);
+    drawOverlay();
+    const tick = Math.ceil(-now);
+    if (now < 0 && tick <= 3 && tick !== lastTick) { lastTick = tick; play('tick'); }
   }
 
-  function frame(now) {
+  function frame(ts) {
     if (!running) return;
-    const dt = Math.min(0.05, (now - last) / 1000);
-    last = now;
-    update(dt);
-    render();
+    const dt = Math.min(0.05, (ts - last) / 1000); last = ts;
+    update(dt); render();
     raf = requestAnimationFrame(frame);
   }
 
   // ---------- API ----------
   function load(targetCanvas) {
-    canvas = targetCanvas;
-    ctx = canvas.getContext('2d');
+    canvas = targetCanvas; ctx = canvas.getContext('2d');
     if (loaded) return loaded;
     loaded = (async () => {
-      const entries = await Promise.all(Object.entries(ASSETS).map(async ([k, src]) => [k, await loadImage(src)]));
-      img = Object.fromEntries(entries);
-      for (const color of COLORS) {
-        const set = await Promise.all(Object.entries(CHAR_ASSETS[color]).map(async ([k, src]) => [k, await loadImage(src)]));
-        chars[color] = Object.fromEntries(set);
-      }
-      for (const layer of PARALLAX) bg[layer.key] = makeLayer(ctx, img[layer.key], layer.scale);
+      await Promise.all(SHEETS.map(loadSheet));
+      for (const [k, file] of Object.entries(SOUNDS)) { try { const a = new Audio(`assets/sounds/${file}.ogg`); a.preload = 'auto'; sounds[k] = a; } catch {} }
     })();
     return loaded;
   }
 
-  // spawnX: posição sugerida (ex.: perto de outro jogador); sem ela, nasce no meio do mapa
-  function start({ color, nick, spawnX, onState: cb }) {
-    const x = Number.isFinite(spawnX) ? spawnX : WORLD_W / 2 + (Math.random() - 0.5) * 160;
-    Object.assign(player, { x, y: GROUND_Y, vx: 0, vy: 0, facing: 1, onGround: true, color: COLORS.includes(color) ? color : 'green', nick: nick || '' });
-    camera.x = Math.max(0, Math.min(WORLD_W - W, player.x - W * 0.5));
-    camera.y = 0;
+  // Começa (ou recomeça) uma corrida. { seed, startAt (relógio do servidor), serverNow, color, nick, onState, onFinish }
+  function startRace(opts) {
+    level = Level.generate(opts.seed);
+    collected.clear(); dead.clear(); springs = new Map();
     remote.clear();
-    onState = cb || null;
-    lastSent = '';
-    keys.clear();
-    Object.assign(virt, { left: false, right: false, jump: false });
-    addEventListener('keydown', onKeyDown);
-    addEventListener('keyup', onKeyUp);
-    addEventListener('blur', onBlur);
-    running = true;
-    last = performance.now();
-    raf = requestAnimationFrame(frame);
+    clockOffset = opts.serverNow - Date.now();
+    startAt = opts.startAt;
+    hooks = { onState: opts.onState, onFinish: opts.onFinish };
+    Object.assign(player, { x: level.spawnX, y: level.spawnY, vx: 0, vy: 0, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, coins: 0, invuln: 0, hitUntil: 0, finished: false, color: COLORS.includes(opts.color) ? opts.color : 'green', nick: opts.nick || '' });
+    camera.x = 0; camera.y = 0; frozen = false; lastSent = ''; lastTick = 99;
+    buildBackground(level.bg);
+    if (!running) {
+      keys.clear(); Object.assign(virt, { left: false, right: false, jump: false });
+      addEventListener('keydown', onKeyDown); addEventListener('keyup', onKeyUp); addEventListener('blur', onBlur);
+      running = true; last = performance.now(); raf = requestAnimationFrame(frame);
+    }
   }
-
   function stop() {
-    running = false;
-    cancelAnimationFrame(raf);
-    removeEventListener('keydown', onKeyDown);
-    removeEventListener('keyup', onKeyUp);
-    removeEventListener('blur', onBlur);
-    onState = null;
+    running = false; cancelAnimationFrame(raf);
+    removeEventListener('keydown', onKeyDown); removeEventListener('keyup', onKeyUp); removeEventListener('blur', onBlur);
+    hooks = {};
   }
-
-  // Substitui o conjunto de jogadores remotos: [{ peer, x, y, f, a, color, nick }]
+  function setFrozen(v) { frozen = v; }
   function setRemote(list) {
     const seen = new Set();
     for (const p of list) {
@@ -306,6 +398,12 @@ const Game = (() => {
     }
     for (const k of remote.keys()) if (!seen.has(k)) remote.delete(k);
   }
+  const stats = () => ({ time: now, coins: player.coins, finished: player.finished, progress: level ? Math.min(1, Math.max(0, player.x / level.finishX)) : 0 });
+  function setMuted(v) { muted = v; }
 
-  return { load, start, stop, setRemote, setVirtualInput, COLORS, W, H, WORLD_W, GROUND_Y };
+  // gancho para testes automatizados (node): roda a física sem canvas
+  const __test = { update, player, keys, setLevel: (l, sa) => { level = l; startAt = sa; clockOffset = 0; } };
+
+  return { load, startRace, stop, setRemote, setVirtualInput, setFrozen, stats, setMuted, COLORS, W, H, __test };
 })();
+if (typeof module === 'object' && module.exports) module.exports = Game;

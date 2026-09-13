@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
+const Level = require('../level.js');
 
 const PORT = process.env.PORT || 8000;
 const STATIC_DIR = path.join(__dirname, '..');
@@ -15,10 +16,12 @@ const COLORS = ['green', 'beige', 'pink', 'purple', 'yellow'];
 const ROOM_ADJ = ['Verde', 'Azul', 'Dourada', 'Secreta', 'Alegre', 'Ventosa', 'Alta', 'Tranquila', 'Veloz', 'Nublada', 'Ensolarada', 'Pequena'];
 const ROOM_NOUN = ['Colina', 'Trilha', 'Clareira', 'Pradaria', 'Encosta', 'Campina', 'Várzea', 'Ladeira', 'Planície', 'Ilha'];
 const randomRoomName = () => `${ROOM_NOUN[Math.floor(Math.random() * ROOM_NOUN.length)]} ${ROOM_ADJ[Math.floor(Math.random() * ROOM_ADJ.length)]}`;
+const COUNTDOWN_MS = 4000;      // contagem regressiva antes da largada
+const RESULTS_MS = 10000;       // placar na tela antes da próxima corrida
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.txt': 'text/plain' };
 
 // ---------- estado ----------
-const rooms = new Map();   // code -> { code, name, visibility, passHash, createdBy, createdAt, players: Map<id, client> }
+const rooms = new Map();   // code -> { code, name, visibility, passHash, createdBy, createdAt, players: Map<id, client>, race }
 const clients = new Map(); // id -> { id, ws, nick, color, room, x, y, f, a }
 
 const makeCode = () => Array.from(crypto.randomBytes(6), (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
@@ -41,13 +44,47 @@ function broadcastRoom(room, type, data, except) {
 }
 const playerView = (c) => ({ id: c.id, nick: c.nick, color: c.color, x: c.x, y: c.y, f: c.f, a: c.a });
 
+// ---------- corrida ----------
+// Cada sala tem uma corrida: seed (fase), startAt (largada), fase 'racing' ou 'results'.
+// A corrida acaba quando o penúltimo cruza a chegada (com 1 ou 2 jogadores, quando o primeiro cruza).
+function raceView(room) {
+  const r = room.race;
+  return { seed: r.seed, startAt: r.startAt, phase: r.phase, results: r.results || null, nextAt: r.nextAt || null, finished: r.finished.length, now: Date.now() };
+}
+function startRace(room) {
+  clearTimeout(room.nextTimer);
+  const seed = crypto.randomInt(1, 2 ** 31);
+  const level = Level.generate(seed);
+  room.race = { seed, finishX: level.finishX, startAt: Date.now() + COUNTDOWN_MS, phase: 'racing', finished: [], results: null, nextAt: null };
+  for (const p of room.players.values()) { p.finished = false; p.x = level.spawnX; p.y = level.spawnY; }
+  broadcastRoom(room, 'race_start', raceView(room));
+}
+function checkRaceEnd(room) {
+  const r = room.race;
+  if (!r || r.phase !== 'racing') return;
+  const n = room.players.size;
+  if (n === 0) return;
+  if (r.finished.length >= Math.max(1, n - 1)) endRace(room);
+}
+function endRace(room) {
+  const r = room.race;
+  r.phase = 'results';
+  const done = new Set(r.finished.map((f) => f.id));
+  const rest = [...room.players.values()].filter((p) => !done.has(p.id)).map((p) => ({ id: p.id, nick: p.nick, color: p.color, time: null, coins: p.coins || 0 }));
+  r.results = [...r.finished, ...rest];
+  r.nextAt = Date.now() + RESULTS_MS;
+  broadcastRoom(room, 'race_end', raceView(room));
+  room.nextTimer = setTimeout(() => { if (rooms.has(room.code) && room.players.size > 0) startRace(room); }, RESULTS_MS);
+}
+
 function leaveRoom(c, notify = true) {
   const room = c.room;
   if (!room) return;
   room.players.delete(c.id);
   c.room = null;
   broadcastRoom(room, 'player_leave', { id: c.id });
-  if (room.players.size === 0) rooms.delete(room.code); // a sala morre com o último jogador
+  if (room.players.size === 0) { clearTimeout(room.nextTimer); rooms.delete(room.code); } // a sala morre com o último jogador
+  else checkRaceEnd(room);
   if (notify) send(c, 'rooms', { rooms: publicRooms() });
   broadcastRooms();
 }
@@ -55,15 +92,11 @@ function leaveRoom(c, notify = true) {
 function joinRoom(c, room) {
   leaveRoom(c, false);
   c.room = room;
-  // nasce ao lado de alguém que já esteja na sala
   const others = [...room.players.values()];
-  if (others.length) {
-    const o = others[Math.floor(Math.random() * others.length)];
-    c.x = o.x + (Math.random() < 0.5 ? -90 : 90);
-  } else c.x = null; // cliente decide (meio do mapa)
-  c.y = null; c.f = 1; c.a = 'i';
+  c.x = 96; c.y = Level.GROUND * Level.TILE; c.f = 1; c.a = 'i'; c.finished = false; c.coins = 0;
   room.players.set(c.id, c);
-  send(c, 'joined', { code: room.code, name: room.name, visibility: room.visibility, spawnX: c.x, players: others.map(playerView) });
+  if (!room.race) startRace(room);
+  send(c, 'joined', { code: room.code, name: room.name, visibility: room.visibility, players: others.map(playerView), race: raceView(room) });
   broadcastRoom(room, 'player_join', { player: playerView(c) }, c);
   broadcastRooms();
 }
@@ -82,7 +115,7 @@ const handlers = {
     const visibility = m.visibility === 'private' ? 'private' : 'public';
     const pass = visibility === 'private' ? String(m.password || '').slice(0, 32) : '';
     let code; do code = makeCode(); while (rooms.has(code));
-    const room = { code, name, visibility, passHash: pass ? hashPass(code, pass) : null, createdBy: c.nick, createdAt: Date.now(), players: new Map() };
+    const room = { code, name, visibility, passHash: pass ? hashPass(code, pass) : null, createdBy: c.nick, createdAt: Date.now(), players: new Map(), race: null, nextTimer: null };
     rooms.set(code, room);
     joinRoom(c, room);
   },
@@ -98,8 +131,20 @@ const handlers = {
     if (!c.room) return;
     c.x = Number(m.x) || 0; c.y = Number(m.y) || 0;
     c.f = m.f === -1 ? -1 : 1;
-    c.a = ['i', 'w', 'j'].includes(m.a) ? m.a : 'i';
+    c.a = ['i', 'w', 'j', 'h'].includes(m.a) ? m.a : 'i';
     broadcastRoom(c.room, 'state', { id: c.id, x: c.x, y: c.y, f: c.f, a: c.a }, c);
+  },
+  finish(c, m) {
+    const room = c.room;
+    if (!room || !room.race || room.race.phase !== 'racing' || c.finished) return;
+    const r = room.race;
+    const now = Date.now();
+    if (now < r.startAt || c.x < r.finishX - Level.TILE) return; // ainda não chegou de verdade
+    c.finished = true;
+    c.coins = Math.max(0, Math.min(999, Number(m.coins) || 0));
+    r.finished.push({ id: c.id, nick: c.nick, color: c.color, time: now - r.startAt, coins: c.coins });
+    broadcastRoom(room, 'player_finish', { id: c.id, nick: c.nick, place: r.finished.length, time: now - r.startAt, finished: r.finished.length, total: room.players.size });
+    checkRaceEnd(room);
   },
 };
 
