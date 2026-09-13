@@ -11,7 +11,7 @@
     createForm: $('create-form'), roomName: $('room-name'), passRow: $('pass-row'), roomPass: $('room-pass'),
     joinForm: $('join-form'), joinCode: $('join-code'), joinPass: $('join-pass'), joinMsg: $('join-msg'), createMsg: $('create-msg'),
     solo: $('solo'), hudRoom: $('hud-room'), hudCode: $('hud-code'), hudPlayers: $('hud-players'), leave: $('leave'),
-    hudTime: $('hud-time'), hudCoins: $('hud-coins'), hudFinished: $('hud-finished'), hudNote: $('hud-note'),
+    hudTime: $('hud-time'), hudCoins: $('hud-coins'), hudSpeed: $('hud-speed'), touchSpeed: $('touch-speed'), hudFinished: $('hud-finished'), hudNote: $('hud-note'),
     touchTime: $('touch-time'), touchCoins: $('touch-coins'),
     results: $('results'), resultsList: $('results-list'), resultsNext: $('results-next'),
     canvas: $('game'), offlineNote: $('offline-note'), fsButton: $('fs-enter'),
@@ -233,6 +233,7 @@
     const t = s.time < 0 ? '0.0 s' : s.time >= 60 ? `${Math.floor(s.time / 60)}:${(s.time % 60).toFixed(1).padStart(4, '0')}` : `${s.time.toFixed(1)} s`;
     els.hudTime.textContent = t; els.touchTime.textContent = t;
     els.hudCoins.textContent = String(s.coins); els.touchCoins.textContent = String(s.coins);
+    const sp = `+${Math.round(s.boost * 100)}%`; els.hudSpeed.textContent = sp; els.touchSpeed.textContent = sp;
   }, 100);
 
   // ---------- mensagens do servidor ----------

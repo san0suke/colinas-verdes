@@ -51,13 +51,13 @@ function raceView(room) {
   const r = room.race;
   return { seed: r.seed, startAt: r.startAt, phase: r.phase, results: r.results || null, nextAt: r.nextAt || null, finished: r.finished.length, now: Date.now() };
 }
-function startRace(room) {
+function startRace(room, except) {
   clearTimeout(room.nextTimer);
   const seed = crypto.randomInt(1, 2 ** 31);
   const level = Level.generate(seed);
   room.race = { seed, finishX: level.finishX, startAt: Date.now() + COUNTDOWN_MS, phase: 'racing', finished: [], results: null, nextAt: null };
   for (const p of room.players.values()) { p.finished = false; p.x = level.spawnX; p.y = level.spawnY; }
-  broadcastRoom(room, 'race_start', raceView(room));
+  broadcastRoom(room, 'race_start', raceView(room), except);
 }
 function checkRaceEnd(room) {
   const r = room.race;
@@ -95,7 +95,9 @@ function joinRoom(c, room) {
   const others = [...room.players.values()];
   c.x = 96; c.y = Level.GROUND * Level.TILE; c.f = 1; c.a = 'i'; c.finished = false; c.coins = 0;
   room.players.set(c.id, c);
-  if (!room.race) startRace(room);
+  if (!room.race) startRace(room, c); // o criador recebe a corrida no 'joined'
+  // quem estava sozinho ganha companhia: recomeça a corrida para os dois largarem juntos
+  else if (room.players.size === 2 && room.race.phase === 'racing') startRace(room, c);
   send(c, 'joined', { code: room.code, name: room.name, visibility: room.visibility, players: others.map(playerView), race: raceView(room) });
   broadcastRoom(room, 'player_join', { player: playerView(c) }, c);
   broadcastRooms();

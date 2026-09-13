@@ -9,7 +9,7 @@ const Game = (() => {
 
   // ---------- física ----------
   const GRAVITY = 2200, MAX_FALL = 1400;
-  const MOVE_SPEED = 340, JUMP_SPEED = 820, JUMP_CUT = 0.45, COYOTE_TIME = 0.08, JUMP_BUFFER = 0.10;
+  const MOVE_SPEED = 340, COIN_BOOST = 0.02, GEM_BOOST = 0.06, MAX_BOOST = 0.8, JUMP_SPEED = 820, JUMP_CUT = 0.45, COYOTE_TIME = 0.08, JUMP_BUFFER = 0.10;
   const HW = 24, BH = 96;                 // meia-largura e altura da caixa do jogador (pés em y)
   const BOUNCE_SPEED = 1500;              // quique em cima de outro jogador
   const ENEMY_BOUNCE = 780, SPRING_SPEED = 1350;
@@ -71,7 +71,7 @@ const Game = (() => {
   const collected = new Set();            // "r,c" das moedas pegas
   const dead = new Set();                 // índices dos inimigos derrotados
   let springs = new Map();                // "r,c" → instante em que a mola foi ativada
-  const player = { x: 0, y: 0, vx: 0, vy: 0, facing: 1, onGround: false, coyote: 0, jumpBuffer: 0, bouncing: false, animTime: 0, color: 'green', nick: '', coins: 0, invuln: 0, hitUntil: 0, finished: false };
+  const player = { x: 0, y: 0, vx: 0, vy: 0, facing: 1, onGround: false, coyote: 0, jumpBuffer: 0, bouncing: false, animTime: 0, color: 'green', nick: '', coins: 0, gems: 0, invuln: 0, hitUntil: 0, finished: false };
   const camera = { x: 0, y: 0 };
   const remote = new Map();
   let running = false, raf = 0, last = 0, frozen = false;
@@ -81,6 +81,8 @@ const Game = (() => {
   let now = 0;                            // tempo da corrida (s), pode ser negativo na contagem
 
   const serverNow = () => Date.now() + clockOffset;
+  // cada moeda +2 % de velocidade, cada gema +6 %, até +80 %
+  const boost = () => Math.min(MAX_BOOST, (player.coins - player.gems) * COIN_BOOST + player.gems * GEM_BOOST);
   const raceTime = () => (serverNow() - startAt) / 1000;
 
   // ---------- input ----------
@@ -157,7 +159,7 @@ const Game = (() => {
     now = raceTime();
     const active = now >= 0 && !frozen;
     const dir = active ? (rightHeld() ? 1 : 0) - (leftHeld() ? 1 : 0) : 0;
-    player.vx = dir * MOVE_SPEED;
+    player.vx = dir * MOVE_SPEED * (1 + boost());
     if (dir !== 0) player.facing = dir;
     if (!active) { jumpPressedThisFrame = false; player.jumpBuffer = 0; }
 
@@ -219,7 +221,7 @@ const Game = (() => {
       for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
         const cell = cellAt(r, c);
         if (!cell) continue;
-        if (cell.k === 'coin' && !isCollected(r, c)) { collected.add(r + ',' + c); player.coins++; play(cell.s.startsWith('gem') ? 'gem' : 'coin'); }
+        if (cell.k === 'coin' && !isCollected(r, c)) { collected.add(r + ',' + c); player.coins++; if (cell.s.startsWith('gem')) { player.gems++; play('gem'); } else play('coin'); }
         else if (cell.k === 'hazard') hurt('hazard ' + cell.s + ' r' + r + ' c' + c);
       }
     }
@@ -380,7 +382,7 @@ const Game = (() => {
     clockOffset = opts.serverNow - Date.now();
     startAt = opts.startAt;
     hooks = { onState: opts.onState, onFinish: opts.onFinish };
-    Object.assign(player, { x: level.spawnX, y: level.spawnY, vx: 0, vy: 0, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, coins: 0, invuln: 0, hitUntil: 0, finished: false, color: COLORS.includes(opts.color) ? opts.color : 'green', nick: opts.nick || '' });
+    Object.assign(player, { x: level.spawnX, y: level.spawnY, vx: 0, vy: 0, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, coins: 0, gems: 0, invuln: 0, hitUntil: 0, finished: false, color: COLORS.includes(opts.color) ? opts.color : 'green', nick: opts.nick || '' });
     camera.x = 0; camera.y = 0; frozen = false; lastSent = ''; lastTick = 99;
     buildBackground(level.bg);
     if (!running) {
@@ -405,7 +407,7 @@ const Game = (() => {
     }
     for (const k of remote.keys()) if (!seen.has(k)) remote.delete(k);
   }
-  const stats = () => ({ time: now, coins: player.coins, finished: player.finished, progress: level ? Math.min(1, Math.max(0, player.x / level.finishX)) : 0 });
+  const stats = () => ({ time: now, coins: player.coins, boost: boost(), finished: player.finished, progress: level ? Math.min(1, Math.max(0, player.x / level.finishX)) : 0 });
   function setMuted(v) { muted = v; }
 
   // gancho para testes automatizados (node): roda a física sem canvas
