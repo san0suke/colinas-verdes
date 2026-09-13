@@ -48,7 +48,16 @@
 
   // ---------- personagem ----------
   let heroStr = '';
+  // sem personagem salvo → sorteia um e guarda (vale para quem entra numa partida sem passar pelo editor)
+  function ensureHero() {
+    if (!Hero.ready()) return;
+    let saved = null; try { saved = localStorage.getItem('hero'); } catch {}
+    if (saved && Hero.decode(saved)) return;
+    const cfg = Hero.random();
+    try { localStorage.setItem('hero', Hero.encode(cfg)); } catch {}
+  }
   function refreshHero() {
+    ensureHero();
     heroStr = Hero.ready() ? Hero.encode(HeroEditor.current()) : '';
     const av = $('hero-avatar'); if (av && Hero.ready()) { const g = av.getContext('2d'); g.clearRect(0, 0, 48, 48); Hero.draw(g, HeroEditor.current(), 'i', 0, 24, 46, false, 3); }
   }
@@ -198,6 +207,7 @@
   function setNote(text) { els.hudNote.textContent = text; }
 
   function enterRoom(r, list, raceInfo) {
+    if (!heroStr) refreshHero();
     currentRoom = r;
     askingCode = null; askingError = '';
     players.clear();
