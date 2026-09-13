@@ -229,10 +229,8 @@
   els.createForm.addEventListener('submit', (e) => {
     e.preventDefault();
     if (!online) return;
-    const name = els.roomName.value.trim();
-    if (!name) return setMsg(els.createMsg, 'Dê um nome para a sala.', 'error');
     setMsg(els.createMsg, 'Criando…');
-    sendMsg('create', { name, visibility: els.createForm.visibility.value, password: els.roomPass.value });
+    sendMsg('create', { name: els.roomName.value.trim(), visibility: els.createForm.visibility.value, password: els.roomPass.value });
   });
   els.joinForm.addEventListener('submit', (e) => {
     e.preventDefault();

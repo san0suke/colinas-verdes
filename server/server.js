@@ -11,6 +11,10 @@ const PORT = process.env.PORT || 8000;
 const STATIC_DIR = path.join(__dirname, '..');
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const COLORS = ['green', 'beige', 'pink', 'purple', 'yellow'];
+// nome aleatório para salas criadas sem nome
+const ROOM_ADJ = ['Verde', 'Azul', 'Dourada', 'Secreta', 'Alegre', 'Ventosa', 'Alta', 'Tranquila', 'Veloz', 'Nublada', 'Ensolarada', 'Pequena'];
+const ROOM_NOUN = ['Colina', 'Trilha', 'Clareira', 'Pradaria', 'Encosta', 'Campina', 'Várzea', 'Ladeira', 'Planície', 'Ilha'];
+const randomRoomName = () => `${ROOM_NOUN[Math.floor(Math.random() * ROOM_NOUN.length)]} ${ROOM_ADJ[Math.floor(Math.random() * ROOM_ADJ.length)]}`;
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.txt': 'text/plain' };
 
 // ---------- estado ----------
@@ -74,8 +78,7 @@ const handlers = {
   },
   list(c) { send(c, 'rooms', { rooms: publicRooms() }); },
   create(c, m) {
-    const name = cleanText(m.name, 32);
-    if (!name) return send(c, 'error', { ctx: 'create', msg: 'Dê um nome para a sala.' });
+    const name = cleanText(m.name, 32) || randomRoomName();
     const visibility = m.visibility === 'private' ? 'private' : 'public';
     const pass = visibility === 'private' ? String(m.password || '').slice(0, 32) : '';
     let code; do code = makeCode(); while (rooms.has(code));

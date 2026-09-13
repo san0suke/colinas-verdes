@@ -9,6 +9,6 @@ services:
     autoDeploy: true
     envVars:
       - key: DEPLOY_STAMP
-        value: "860de29"
+        value: "f8b73b2"
       - key: NODE_VERSION
         value: 22
