@@ -19,6 +19,7 @@
   let myColor = Game.COLORS[Math.floor(Math.random() * Game.COLORS.length)];
   const players = new Map();       // id -> { id, nick, color, x, y, f, a } (outros jogadores da sala)
   let reconnectDelay = 1000;
+  let lastRooms = [];              // última lista recebida do servidor
 
   // ---------- util ----------
   const nick = () => (els.nick.value.trim() || 'Jogador').slice(0, 16);
@@ -70,10 +71,13 @@
   }
 
   // ---------- lista de salas ----------
+  let askingCode = null;   // sala cujo campo de senha está aberto na lista
+  let askingError = '';
   function renderRooms(list) {
     const now = Date.now();
     els.rooms.innerHTML = '';
     els.roomsEmpty.hidden = list.length > 0;
+    if (askingCode && !list.some((r) => r.code === askingCode)) { askingCode = null; askingError = ''; }
     for (const r of list) {
       const li = document.createElement('li');
       li.className = 'room';
@@ -82,11 +86,44 @@
           <span class="room-name"></span>
           <span class="room-meta"><span class="count"></span> · criada por <span class="by"></span> · ${fmtAge(Math.max(0, now - r.createdAt))}</span>
         </div>
-        <button type="button" class="btn small">Entrar</button>`;
+        <div class="room-side"></div>`;
       li.querySelector('.room-name').textContent = r.name;
       li.querySelector('.by').textContent = r.createdBy || 'alguém';
       li.querySelector('.count').textContent = r.count === 1 ? '1 jogador' : `${r.count} jogadores`;
-      li.querySelector('button').addEventListener('click', () => sendMsg('join', { code: r.code }));
+      const side = li.querySelector('.room-side');
+      if (r.visibility === 'private') {
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = r.hasPassword ? 'privada · senha' : 'privada';
+        side.appendChild(badge);
+      }
+      if (r.hasPassword && askingCode === r.code) {
+        // pede a senha na própria linha
+        const form = document.createElement('form');
+        form.className = 'room-pass';
+        form.innerHTML = '<input type="password" maxlength="32" placeholder="Senha" autocomplete="off" aria-label="Senha da sala"><button type="submit" class="btn small">Entrar</button>';
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          askingError = '';
+          sendMsg('join', { code: r.code, password: form.querySelector('input').value });
+        });
+        side.appendChild(form);
+        if (askingError) {
+          const err = document.createElement('span');
+          err.className = 'room-err';
+          err.textContent = askingError;
+          li.appendChild(err);
+        }
+        requestAnimationFrame(() => form.querySelector('input').focus());
+      } else {
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'btn small'; btn.textContent = 'Entrar';
+        btn.addEventListener('click', () => {
+          if (r.hasPassword) { askingCode = r.code; askingError = ''; renderRooms(lastRooms); }
+          else sendMsg('join', { code: r.code });
+        });
+        side.appendChild(btn);
+      }
       els.rooms.appendChild(li);
     }
   }
@@ -106,6 +143,7 @@
 
   function enterRoom(r, spawnX, list) {
     currentRoom = r;
+    askingCode = null; askingError = '';
     players.clear();
     for (const p of list || []) players.set(p.id, { ...p, x: Number(p.x) || 0, y: Number(p.y) || Game.GROUND_Y });
     els.hudRoom.textContent = r ? r.name : 'Jogando sozinho';
@@ -135,7 +173,7 @@
   // ---------- mensagens do servidor ----------
   const on = {
     welcome(m) { myId = m.id; if (m.color) myColor = m.color; },
-    rooms(m) { if (!currentRoom) renderRooms(m.rooms || []); },
+    rooms(m) { lastRooms = m.rooms || []; if (!currentRoom) renderRooms(lastRooms); },
     joined(m) {
       setMsg(els.createMsg, ''); setMsg(els.joinMsg, '');
       els.roomName.value = ''; els.roomPass.value = ''; els.joinCode.value = ''; els.joinPass.value = '';
@@ -149,7 +187,10 @@
       p.x = m.x; p.y = m.y; p.f = m.f; p.a = m.a;
       pushRemote();
     },
-    error(m) { setMsg(m.ctx === 'join' ? els.joinMsg : els.createMsg, m.msg || 'Erro', 'error'); },
+    error(m) {
+      if (m.ctx === 'join' && askingCode) { askingError = m.msg || 'Erro'; renderRooms(lastRooms); return; }
+      setMsg(m.ctx === 'join' ? els.joinMsg : els.createMsg, m.msg || 'Erro', 'error');
+    },
   };
 
   // ---------- conexão ----------

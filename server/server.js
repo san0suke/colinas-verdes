@@ -22,10 +22,11 @@ const hashPass = (code, pass) => crypto.createHash('sha256').update(code + ':' +
 const cleanText = (s, max) => String(s ?? '').replace(/[^\p{L}\p{N} _.!?'-]/gu, '').trim().slice(0, max);
 const send = (c, type, data) => { if (c.ws.readyState === 1) c.ws.send(JSON.stringify({ type, ...data })); };
 
+// Todas as salas aparecem na lista; as privadas com senha pedem a senha ao entrar.
 function publicRooms() {
-  return [...rooms.values()].filter((r) => r.visibility === 'public')
+  return [...rooms.values()]
     .sort((a, b) => b.createdAt - a.createdAt)
-    .map((r) => ({ code: r.code, name: r.name, count: r.players.size, createdBy: r.createdBy, createdAt: r.createdAt }));
+    .map((r) => ({ code: r.code, name: r.name, visibility: r.visibility, hasPassword: !!r.passHash, count: r.players.size, createdBy: r.createdBy, createdAt: r.createdAt }));
 }
 function broadcastRooms() {
   const list = publicRooms();

@@ -92,6 +92,12 @@
   .room { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; background: var(--panel-2); border-radius: 10px; }
   .room-name { font-weight: 700; display: block; }
   .room-meta { font-size: 13px; color: var(--muted); }
+  .room-side { display: flex; align-items: center; gap: 8px; flex: none; }
+  .badge { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
+  .room-pass { display: flex; gap: 8px; align-items: center; }
+  .room-pass input { width: 150px; padding: 7px 10px; }
+  .room-err { flex-basis: 100%; font-size: 13px; color: var(--error); }
+  .room { flex-wrap: wrap; }
   .rooms-empty { color: var(--muted); padding: 18px 0; text-align: center; }
 
   .divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
@@ -159,9 +165,9 @@
 
   <div class="grid">
     <section class="panel">
-      <h2>Salas públicas</h2>
+      <h2>Salas</h2>
       <ul id="rooms" class="rooms"></ul>
-      <p id="rooms-empty" class="rooms-empty">Nenhuma sala pública aberta agora. Crie a primeira!</p>
+      <p id="rooms-empty" class="rooms-empty">Nenhuma sala aberta agora. Crie a primeira!</p>
     </section>
 
     <div class="stack">
