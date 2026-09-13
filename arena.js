@@ -60,7 +60,7 @@ const Arena = (() => {
     for (let r = 0; r < level.rows; r++) for (let c = 0; c < level.cols; c++) {
       const k = level.ground[r][c];
       const groundTile = level.biome === 'winter' ? t.snow : level.biome === 'desert' ? t.sand : t.grass;
-      const pathTile = level.biome === 'desert' ? t.grass : t.dirt;
+      const pathTile = level.biome === 'desert' ? t.grass : (t.earth || t.dirt); // trilha de terra marrom (areia só no deserto)
       if (k === 'w') drawTile(g, t.water, c * TS, r * TS, (c % 3) * TILE, (r % 3) * TILE);
       else drawTile(g, k === 'd' ? pathTile : groundTile, c * TS, r * TS);
     }

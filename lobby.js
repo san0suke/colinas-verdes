@@ -298,7 +298,8 @@
     const tick = () => {
       if (nextAt == null) { els.resultsNext.textContent = ''; return; }
       const s = Math.max(0, Math.ceil((nextAt - (Date.now() + clockOffset)) / 1000));
-      els.resultsNext.textContent = s > 0 ? `Próxima corrida em ${s} s` : 'Começando…';
+      const what = Engine === Arena ? 'batalha' : 'corrida';
+      els.resultsNext.textContent = s > 0 ? `Próxima ${what} em ${s} s` : 'Começando…';
     };
     tick();
     resultsTimer = setInterval(tick, 250);

@@ -269,8 +269,9 @@ let nextId = 1;
 wss.on('connection', (ws) => {
   const c = { id: String(nextId++), ws, nick: 'Jogador', color: 'green', room: null, x: 0, y: 0, f: 1, a: 'i', alive: true };
   clients.set(c.id, c);
-  ws.on('pong', () => { c.alive = true; });
+  ws.on('pong', () => { c.alive = true; c.missed = 0; });
   ws.on('message', (raw) => {
+    c.alive = true; c.missed = 0;
     if (raw.length > 4096) return;
     let m; try { m = JSON.parse(raw); } catch { return; }
     const h = handlers[m && m.type];
@@ -280,12 +281,13 @@ wss.on('connection', (ws) => {
   ws.on('error', () => {});
 });
 
-// keepalive (Render fecha conexões ociosas)
+// keepalive: ping a cada 5 s; quem não responde a 2 seguidos é desconectado (e sai da sala na hora)
 setInterval(() => {
   for (const c of clients.values()) {
-    if (!c.alive) { c.ws.terminate(); continue; }
+    c.missed = (c.missed || 0) + (c.alive ? 0 : 1);
+    if (c.missed >= 2) { c.ws.terminate(); continue; }
     c.alive = false; c.ws.ping();
   }
-}, 15_000);
+}, 5_000);
 
 server.listen(PORT, () => console.log(`Colinas Verdes: http://localhost:${PORT}`));

@@ -63,27 +63,32 @@ const tiles = {
   stoneBlock: { x: 320, y: 304, w: 48, h: 48 },
   water: { x: 192, y: 528, w: 48, h: 48 },        // textura repetível
   snow: { x: 432, y: 320, w: 16, h: 16 },          // centro do bloco branco
+  earth: { x: 576, y: 482, w: 16, h: 16 },         // terra marrom (trilhas)
   sand: { x: 384, y: 320, w: 16, h: 16 },
   waterBlock: { x: 272, y: 304, w: 48, h: 48 },   // bloco 3×3 de água com borda
   sandBlock: { x: 272 + 48 * 2, y: 304, w: 48, h: 48 },
 };
 // bioma de cada objeto pela cor média (matiz/saturação) dos pixels opacos; cactos pela região do atlas
 function biomeOf(o, kind) {
-  let r = 0, g = 0, b = 0, n = 0;
-  for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) { const i = (y * W + x) * 4; if (atlas.data[i + 3] < 20) continue; r += atlas.data[i]; g += atlas.data[i + 1]; b += atlas.data[i + 2]; n++; }
+  let r = 0, g = 0, b = 0, n = 0, bluePx = 0;
+  for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) { const i = (y * W + x) * 4; if (atlas.data[i + 3] < 20) continue; const pr = atlas.data[i], pg = atlas.data[i + 1], pb = atlas.data[i + 2]; r += pr; g += pg; b += pb; n++; if (pb > pr + 40 && pb > pg - 10 && pb > 120) bluePx++; }
   r /= n; g /= n; b /= n;
   const max = Math.max(r, g, b), min = Math.min(r, g, b), sat = max ? (max - min) / max : 0;
   let hue = 0; if (max !== min) { if (max === r) hue = ((g - b) / (max - min)) % 6; else if (max === g) hue = (b - r) / (max - min) + 2; else hue = (r - g) / (max - min) + 4; hue = (hue * 60 + 360) % 360; }
-  if (kind === 'bush' && o.x >= 350 && o.x <= 450 && o.y >= 120 && o.y <= 200) return 'desert'; // cactos
-  if (o.x < 256 && o.y < 256 && hue >= 150 && hue <= 240 && sat > 0.06) return 'winter'; // tufos/moitas ciano da seção de grama
-  if (kind === 'rock' && hue >= 60 && hue < 160 && sat > 0.08) return 'forest'; // pedras com musgo
-  if (kind === 'tuft' || kind === 'flower') return (hue >= 160 && hue <= 230 && sat > 0.3) ? 'winter' : 'any';
-  if (hue >= 160 && hue <= 235 && sat > 0.15) return 'winter'; // azul/ciano (mesmo pálido)
-  if (sat < 0.12) return 'any';                       // cinza: pedras neutras
-  if (kind === 'rock' && hue >= 60 && hue < 160) return 'forest'; // pedras com musgo
-  if (hue >= 60 && hue < 160) return 'forest';         // verde
-  if (hue >= 250 && hue <= 335) return 'mystic';       // roxo/rosa
-  if (hue < 60 || hue > 335) return (kind === 'rock' ? 'desert' : 'autumn'); // laranja/vermelho
+  const blue = hue >= 150 && hue <= 240, green = hue >= 60 && hue < 150, purple = hue > 240 && hue <= 335, warm = hue < 60 || hue > 335;
+  if (o.x >= 350 && o.x <= 450 && o.y >= 120 && o.y <= 200) return 'desert'; // cactos (qualquer tamanho)
+  if (kind !== 'rock' && bluePx / n > 0.08) return 'winter'; // tem pedaços azuis/ciano (ex.: flor de gelo junto de troncos)
+  if (kind === 'rock') {
+    if (blue && sat > 0.18) return 'winter';       // pedras de gelo
+    if (green && sat > 0.08) return 'forest';      // com musgo
+    if (warm && sat > 0.2) return 'desert';        // alaranjadas
+    return 'any';                                  // cinza
+  }
+  if (blue && sat > 0.05) return 'winter';         // qualquer coisa azulada/ciano só no inverno
+  if (sat < 0.12) return 'any';
+  if (green) return (kind === 'tuft' || kind === 'flower') ? 'any' : 'forest'; // tufos verdes servem em todo lugar
+  if (purple) return 'mystic';
+  if (warm) return 'autumn';
   return 'any';
 }
 const BIOMES = ['forest', 'autumn', 'winter', 'mystic', 'desert'];
