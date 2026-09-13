@@ -155,7 +155,7 @@ gggggggggggggggggggggggggg`),
         // interior
         { k: 'grove', tx: 11, ty: 2 }, { k: 'treeG', tx: 6, ty: 11 }, { k: 'treeG2', tx: 18, ty: 12 }, { k: 'treeG3', tx: 3, ty: 4 }, { k: 'treeG', tx: 15, ty: 9 },
         { k: 'logs', tx: 8, ty: 8 }, { k: 'log', tx: 15, ty: 2 }, { k: 'rockM', tx: 12, ty: 12 }, { k: 'rockM2', tx: 21, ty: 8 }, { k: 'rockG', tx: 5, ty: 7 }, { k: 'rockG', tx: 16, ty: 5 },
-        { k: 'bushG', tx: 9, ty: 5 }, { k: 'bushG2', tx: 14, ty: 13 }, { k: 'bushG', tx: 3, ty: 13 }, { k: 'bushG2', tx: 22, ty: 12 },
+        { k: 'bushG', tx: 9, ty: 5 }, { k: 'bushG2', tx: 14, ty: 13 }, { k: 'bushG', tx: 11, ty: 11 }, { k: 'bushG2', tx: 22, ty: 12 },
         { k: 'tuft', tx: 7, ty: 3 }, { k: 'tuft2', tx: 13, ty: 8 }, { k: 'flower', tx: 7, ty: 13 }, { k: 'flower', tx: 17, ty: 2 }, { k: 'tuft', tx: 20, ty: 6 }, { k: 'tuft2', tx: 10, ty: 10 }, { k: 'flower', tx: 23, ty: 9 }, { k: 'tuft', tx: 2, ty: 2 },
       ],
     },
