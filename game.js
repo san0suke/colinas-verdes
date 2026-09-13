@@ -9,8 +9,8 @@ const Game = (() => {
 
   // ---------- física ----------
   const GRAVITY = 2200, MAX_FALL = 1400;
-  const MOVE_SPEED = 340, COIN_BOOST = 0.02, MAX_BOOST = 0.8, JUMP_SPEED = 820,
-  const GEM_VALUE = { gem_green: 5, gem_blue: 8, gem_red: 10, gem_yellow: 10 }; // gemas valem várias moedas JUMP_CUT = 0.45, COYOTE_TIME = 0.08, JUMP_BUFFER = 0.10;
+  const MOVE_SPEED = 340, COIN_BOOST = 0.02, MAX_BOOST = 0.8, JUMP_SPEED = 820, JUMP_CUT = 0.45, COYOTE_TIME = 0.08, JUMP_BUFFER = 0.10;
+  const GEM_VALUE = { gem_green: 5, gem_blue: 8, gem_red: 10, gem_yellow: 10 }; // gemas valem várias moedas
   const HW = 24, BH = 96;                 // meia-largura e altura da caixa do jogador (pés em y)
   const BOUNCE_SPEED = 1500;              // quique em cima de outro jogador
   const ENEMY_BOUNCE = 780, SPRING_SPEED = 1350;
