@@ -43,7 +43,7 @@ function broadcastRooms() {
 function broadcastRoom(room, type, data, except) {
   for (const p of room.players.values()) if (p !== except) send(p, type, data);
 }
-const playerView = (c) => ({ id: c.id, nick: c.nick, color: c.color, x: c.x, y: c.y, f: c.f, a: c.a });
+const playerView = (c) => ({ id: c.id, nick: c.nick, color: c.color, hero: c.hero || '', x: c.x, y: c.y, f: c.f, a: c.a });
 
 // ---------- corrida ----------
 // Cada sala tem uma corrida: seed (fase), startAt (largada), fase 'racing' ou 'results'.
@@ -111,8 +111,10 @@ const handlers = {
   hello(c, m) {
     c.nick = cleanText(m.nick, 16) || 'Jogador';
     c.color = COLORS.includes(m.color) ? m.color : COLORS[Math.floor(Math.random() * COLORS.length)];
+    c.hero = typeof m.hero === 'string' && m.hero.length <= 600 && m.hero.startsWith('{') ? m.hero : ''; // config do personagem (JSON), validada no cliente
     send(c, 'welcome', { id: c.id, color: c.color });
     send(c, 'rooms', { rooms: publicRooms() });
+    if (c.room) broadcastRoom(c.room, 'player_update', { id: c.id, nick: c.nick, color: c.color, hero: c.hero }, c); // mudou o personagem/apelido dentro da sala
   },
   list(c) { send(c, 'rooms', { rooms: publicRooms() }); },
   ping(c, m) { send(c, 'pong', { t0: Number(m.t0) || 0, server: Date.now() }); },

@@ -424,12 +424,16 @@ const Game = (() => {
     if (anim === 'w') return Math.floor(t * 8) % 2 ? `character_${c}_walk_a` : `character_${c}_walk_b`;
     return `character_${c}_idle`;
   }
-  function drawCharacter(x, y, facing, sprite, nick, alpha) {
+  const heroCache = new Map(); // string → config (ou null)
+  function parseHero(s) { if (!s || typeof Hero === 'undefined') return null; if (!heroCache.has(s)) heroCache.set(s, Hero.decode(s)); return heroCache.get(s); }
+  const HERO_SCALE = 6; // quadros de 64 px com o boneco de ~16 px → ~96 px na tela
+  function drawCharacter(x, y, facing, sprite, nick, alpha, hero, anim, t) {
     const sx = Math.round(x - camera.x), sy = Math.round(y - camera.y);
-    if (sx < -150 || sx > W + 150) return;
+    if (sx < -200 || sx > W + 200) return;
     ctx.save();
     ctx.globalAlpha = alpha;
-    draw(sprite, sx - 64, sy - 128, facing < 0);
+    const drawn = hero && typeof Hero !== 'undefined' && Hero.draw(ctx, hero, anim, t, sx, sy, facing < 0, HERO_SCALE);
+    if (!drawn) draw(sprite, sx - 64, sy - 128, facing < 0);
     ctx.restore();
     if (nick) {
       ctx.save();
@@ -455,11 +459,11 @@ const Game = (() => {
     for (const r of remote.values()) {
       const hurtFor = r.hurtAt ? (performance.now() - r.hurtAt) / 1000 : 99;
       const blink = hurtFor < HURT_INVULN && Math.floor(hurtFor * 12) % 2 === 0;
-      drawCharacter(r.x, r.y, r.f, charSprite(r.color, r.a, t), r.nick, blink ? 0.35 : 0.92);
+      drawCharacter(r.x, r.y, r.f, charSprite(r.color, r.a, t), r.nick, blink ? 0.35 : 0.92, r.hero, r.a, t);
     }
     const anim = player.hitUntil > 0 ? 'h' : (!player.onGround || player.dashTime > 0) ? 'j' : player.vx !== 0 ? 'w' : 'i';
     const blink = player.invuln > 0 && Math.floor(player.animTime * 12) % 2 === 0;
-    drawCharacter(player.x, player.y, player.facing, charSprite(player.color, anim, player.animTime), player.nick, blink ? 0.35 : 1);
+    drawCharacter(player.x, player.y, player.facing, charSprite(player.color, anim, player.animTime), player.nick, blink ? 0.35 : 1, player.hero, anim, player.animTime);
     if (player.popUntil > 0 && player.popText) {
       const sx = Math.round(player.x - camera.x), sy = Math.round(player.y - camera.y) - 150 - Math.round((1.6 - player.popUntil) * 45);
       ctx.save();
@@ -485,7 +489,7 @@ const Game = (() => {
 
   function frame(ts) {
     if (!running) return;
-    const dt = Math.min(0.05, (ts - last) / 1000); last = ts;
+    const dt = Math.max(0, Math.min(0.05, (ts - last) / 1000)); last = ts; // nunca negativo (rAF vs performance.now no 1º frame)
     update(dt); render();
     raf = requestAnimationFrame(frame);
   }
@@ -510,7 +514,7 @@ const Game = (() => {
     startAt = opts.startAt;
     hooks = { onState: opts.onState, onFinish: opts.onFinish, onCrate: opts.onCrate, onStarBlock: opts.onStarBlock, onTake: opts.onTake };
     pending.clear();
-    Object.assign(player, { x: level.spawnX, y: level.spawnY, vx: 0, vy: 0, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, dashes: DASH_CHARGES, dashTime: 0, dashDir: 1, coins: 0, invuln: 0, hitUntil: 0, lossUntil: 0, lossText: '', popUntil: 0, popText: '', finished: false, color: COLORS.includes(opts.color) ? opts.color : 'green', nick: opts.nick || '' });
+    Object.assign(player, { x: level.spawnX, y: level.spawnY, vx: 0, vy: 0, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, dashes: DASH_CHARGES, dashTime: 0, dashDir: 1, coins: 0, invuln: 0, hitUntil: 0, lossUntil: 0, lossText: '', popUntil: 0, popText: '', finished: false, color: COLORS.includes(opts.color) ? opts.color : 'green', nick: opts.nick || '', hero: parseHero(opts.hero) });
     camera.x = 0; camera.y = 0; frozen = false; lastSent = ''; lastTick = 99;
     buildBackground(level.bg);
     if (!running) {
@@ -531,8 +535,8 @@ const Game = (() => {
     for (const p of list) {
       seen.add(p.peer);
       const cur = remote.get(p.peer);
-      if (cur) { if (p.a === 'h' && cur.a !== 'h') cur.hurtAt = performance.now(); Object.assign(cur, { tx: p.x, ty: p.y, f: p.f, a: p.a, color: p.color, nick: p.nick }); }
-      else remote.set(p.peer, { x: p.x, y: p.y, tx: p.x, ty: p.y, f: p.f, a: p.a, color: p.color, nick: p.nick });
+      if (cur) { if (p.a === 'h' && cur.a !== 'h') cur.hurtAt = performance.now(); Object.assign(cur, { tx: p.x, ty: p.y, f: p.f, a: p.a, color: p.color, nick: p.nick, hero: parseHero(p.hero) }); }
+      else remote.set(p.peer, { x: p.x, y: p.y, tx: p.x, ty: p.y, f: p.f, a: p.a, color: p.color, nick: p.nick, hero: parseHero(p.hero) });
     }
     for (const k of remote.keys()) if (!seen.has(k)) remote.delete(k);
   }

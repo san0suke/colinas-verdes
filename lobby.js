@@ -3,7 +3,7 @@
 
 (() => {
   const $ = (id) => document.getElementById(id);
-  const screens = { lobby: $('lobby'), gate: $('fsgate'), game: $('gamescreen') };
+  const screens = { lobby: $('lobby'), hero: $('heroscreen'), gate: $('fsgate'), game: $('gamescreen') };
   // Celular/tablet: ponteiro "grosso" (toque). Notebooks com touchscreen continuam no modo desktop.
   const isTouch = matchMedia('(pointer: coarse)').matches;
   const els = {
@@ -46,12 +46,20 @@
   }
   let soloSeed = 0;
 
+  // ---------- personagem ----------
+  let heroStr = '';
+  function refreshHero() {
+    heroStr = Hero.ready() ? Hero.encode(HeroEditor.current()) : '';
+    const av = $('hero-avatar'); if (av && Hero.ready()) { const g = av.getContext('2d'); g.clearRect(0, 0, 48, 48); Hero.draw(g, HeroEditor.current(), 'i', 0, 24, 46, false, 3); }
+  }
+  window.addEventListener('hero-changed', () => { refreshHero(); sendMsg('hello', { nick: nick(), color: myColor, hero: heroStr }); });
+
   // ---------- util ----------
   const nick = () => (els.nick.value.trim() || 'Jogador').slice(0, 16);
   try { els.nick.value = localStorage.getItem('nick') || ''; } catch {}
   els.nick.addEventListener('change', () => {
     try { localStorage.setItem('nick', nick()); } catch {}
-    sendMsg('hello', { nick: nick(), color: myColor });
+    sendMsg('hello', { nick: nick(), color: myColor, hero: heroStr });
   });
 
   let currentScreen = 'lobby';
@@ -160,7 +168,7 @@
 
   // ---------- sala / corrida ----------
   function pushRemote() {
-    Game.setRemote([...players.values()].map((p) => ({ peer: p.id, x: p.x, y: p.y, f: p.f, a: p.a, color: p.color, nick: p.nick })));
+    Game.setRemote([...players.values()].map((p) => ({ peer: p.id, x: p.x, y: p.y, f: p.f, a: p.a, color: p.color, nick: p.nick, hero: p.hero || '' })));
     els.hudPlayers.textContent = String(players.size + 1);
   }
 
@@ -172,7 +180,7 @@
     Game.setFrozen(false);
     Game.startRace({
       seed: r.seed, startAt: r.startAt, serverNow: r.now, clockOffset: clockSynced ? clockOffset : undefined,
-      color: myColor, nick: nick(),
+      color: myColor, nick: nick(), hero: heroStr,
       onState: currentRoom ? (s) => sendMsg('state', s) : null,
       onFinish: ({ coins, time }) => {
         if (currentRoom) sendMsg('finish', { coins });
@@ -290,6 +298,7 @@
     },
     player_join(m) { if (currentRoom) { players.set(m.player.id, { ...m.player, x: Number(m.player.x) || 0, y: Number(m.player.y) || 0 }); pushRemote(); } },
     player_leave(m) { if (players.delete(m.id)) pushRemote(); },
+    player_update(m) { const p = players.get(m.id); if (p) { p.nick = m.nick; p.color = m.color; p.hero = m.hero || ''; pushRemote(); } },
     state(m) { const p = players.get(m.id); if (!p) return; p.x = m.x; p.y = m.y; p.f = m.f; p.a = m.a; pushRemote(); },
     player_finish(m) {
       if (race && m.endsAt) race.endsAt = m.endsAt;
@@ -315,7 +324,7 @@
     setStatus('Conectando…', 'warn');
     ws = new WebSocket(url);
     ws.onopen = () => {
-      reconnectDelay = 1000; setOnline(true); setStatus('Online', 'ok'); sendMsg('hello', { nick: nick(), color: myColor });
+      reconnectDelay = 1000; setOnline(true); setStatus('Online', 'ok'); sendMsg('hello', { nick: nick(), color: myColor, hero: heroStr });
       clockSynced = false; syncClock(); clearInterval(syncTimer); syncTimer = setInterval(syncClock, 30000);
     };
     ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } const h = on[m && m.type]; if (h) h(m); };
@@ -361,6 +370,8 @@
     sendMsg('join', { code, password: els.joinPass.value });
   });
   els.solo.addEventListener('click', () => enterRoom(null));
+  $('btn-hero').addEventListener('click', () => { show('hero'); HeroEditor.show(); });
+  HeroEditor.init({ onClose: () => show('lobby') });
   els.leave.addEventListener('click', leaveRoom);
   $('gate-leave').addEventListener('click', leaveRoom);
 
@@ -371,9 +382,14 @@
     els.passRow.hidden = true;
     setOnline(false);
     await Game.load(els.canvas);
+    try { await Hero.load(); } catch (e) { console.warn('heróis indisponíveis', e); }
+    refreshHero();
+    // avatar do lobby atualiza quando as peças terminam de carregar
+    setTimeout(refreshHero, 1500);
     connect();
     // ?solo=1&seed=N: entra direto jogando sozinho (útil para testes)
     const q = new URLSearchParams(location.search);
+    if (q.get('hero')) { show('hero'); HeroEditor.show(); } // ?hero=1 abre o editor direto (testes)
     if (q.get('solo')) { if (q.get('seed')) soloSeed = +q.get('seed'); enterRoom(null); if (q.get('x')) Game.__test.player.x = +q.get('x'); }
   })().catch((err) => { setStatus('Erro: ' + err.message, 'error'); console.error(err); });
 })();

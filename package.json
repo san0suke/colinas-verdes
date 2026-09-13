@@ -7,8 +7,13 @@
   "scripts": {
     "start": "node server/server.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "pngjs": "^7.0.0"
   }
 }
