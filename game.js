@@ -24,7 +24,7 @@ const Game = (() => {
   // ---------- atlas / áudio ----------
   const SHEETS = ['tiles', 'enemies', 'characters', 'backgrounds'];
   const atlas = new Map();                // nome → { img, x, y, w, h }
-  const SOUNDS = { jump: 'sfx_jump', coin: 'sfx_coin', gem: 'sfx_gem', hurt: 'sfx_hurt', bump: 'sfx_bump', spring: 'sfx_jump-high', finish: 'sfx_magic', pop: 'sfx_disappear', tick: 'sfx_select', crate: 'crate.wav', star: 'star.wav' };
+  const SOUNDS = { jump: 'sfx_jump', coin: 'sfx_coin', gem: 'sfx_gem', hurt: 'sfx_hurt', bump: 'sfx_bump', spring: 'sfx_jump-high', finish: 'sfx_magic', pop: 'sfx_disappear', tick: 'sfx_select', crate: 'crate.wav', star: 'star.wav', kill1: 'kill1.wav', kill2: 'kill2.wav', kill3: 'kill3.wav', kill4: 'kill4.wav' };
   const sounds = {};
   let muted = false;
   function play(name) {
@@ -286,7 +286,7 @@ const Game = (() => {
       if (player.x + HW - 6 < ex0 || player.x - HW + 6 > ex1 || player.y - 6 < ey0 || player.y - BH + 6 > ey1) return;
       const stomp = player.vy > 0 && prevY <= ey0 + STOMP_TOLERANCE + 10;
       if (stomp && !level.hurtOnStomp.some((k) => e.type.startsWith(k))) {
-        dead.add(i); player.vy = -ENEMY_BOUNCE; player.y = ey0; player.bouncing = true; play('pop');
+        dead.add(i); player.vy = -ENEMY_BOUNCE; player.y = ey0; player.bouncing = true; play('kill' + (1 + Math.floor(Math.random() * 4))); // um dos 4 impactos, ao acaso
       } else hurt('enemy ' + e.type);
     });
     // --- estrelas soltas e partículas ---
