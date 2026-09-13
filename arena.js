@@ -16,7 +16,7 @@ const Arena = (() => {
   const player = { id: '', x: 0, y: 0, vx: 0, vy: 0, facing: 1, hp: MAX_HP, alive: true, attackT: -1, cd: 0, invuln: 0, hurtT: 0, kx: 0, ky: 0, hero: null, nick: '', animTime: 0, deadAt: 0 };
   const remote = new Map();
   const camera = { x: 0, y: 0 };
-  let running = false, raf = 0, last = 0, frozen = false;
+  let running = false, raf = 0, last = 0, frozen = false, overview = false;
   let startAt = 0, clockOffset = 0, now = 0, hooks = {}, lastSent = '', hitSent = new Set();
   let muted = false; const sounds = {};
   const SOUNDS = { swing: 'sfx_throw', hit: 'sfx_hurt', die: 'sfx_disappear', tick: 'sfx_select', win: 'sfx_magic', bump: 'sfx_bump' };
@@ -53,26 +53,53 @@ const Arena = (() => {
   function drawTile(g, rect, dx, dy, sx, sy) { // pedaço 16×16 da textura (com offset para texturas maiores)
     g.drawImage(atlas, rect.x + (sx || 0), rect.y + (sy || 0), TILE, TILE, dx, dy, TS, TS);
   }
+  // tiles de chão por caractere do mapa (rects no atlas; texturas maiores repetem por módulo)
+  const GROUND = {
+    g: { x: 480, y: 320, w: 16, h: 16 }, d: { x: 576, y: 482, w: 16, h: 16 }, s: { x: 384, y: 320, w: 16, h: 16 }, n: { x: 432, y: 320, w: 16, h: 16 },
+    p: { x: 48, y: 528, w: 32, h: 32 }, w: { x: 192, y: 528, w: 48, h: 48 }, l: { x: 80, y: 528, w: 32, h: 32 },
+  };
+  const WALL_RING = { x: 869, y: 337, w: 48, h: 48 }; // anel de pedra cinza (9 fatias) para paredes da masmorra
+  const isWall = (r, c) => r >= 0 && c >= 0 && r < level.rows && c < level.cols && level.ground[r][c] === 'W';
   function prerenderGround() {
     ground = document.createElement('canvas'); ground.width = level.width * S; ground.height = level.height * S;
     const g = ground.getContext('2d'); g.imageSmoothingEnabled = false;
-    const t = retro.tiles;
+    g.fillStyle = '#0a0b14'; g.fillRect(0, 0, ground.width, ground.height);
     for (let r = 0; r < level.rows; r++) for (let c = 0; c < level.cols; c++) {
       const k = level.ground[r][c];
-      const groundTile = level.biome === 'winter' ? t.snow : level.biome === 'desert' ? t.sand : t.grass;
-      const pathTile = level.biome === 'desert' ? t.grass : (t.earth || t.dirt); // trilha de terra marrom (areia só no deserto)
-      if (k === 'w') drawTile(g, t.water, c * TS, r * TS, (c % 3) * TILE, (r % 3) * TILE);
-      else drawTile(g, k === 'd' ? pathTile : groundTile, c * TS, r * TS);
+      if (k === 'k') continue;
+      if (k === 'W') {
+        // 9 fatias do anel: escolhe pela vizinhança (linhas de 1 tile)
+        const L = isWall(r, c - 1), R = isWall(r, c + 1), U = isWall(r - 1, c), D = isWall(r + 1, c);
+        let sx = 16, sy = 0; // borda de cima (horizontal)
+        if (R && D && !L && !U) { sx = 0; sy = 0; } else if (L && D && !R && !U) { sx = 32; sy = 0; }
+        else if (R && U && !L && !D) { sx = 0; sy = 32; } else if (L && U && !R && !D) { sx = 32; sy = 32; }
+        else if ((U || D) && !L && !R) { sx = 0; sy = 16; }
+        else if (L && R && U && !D) { sx = 16; sy = 32; }
+        g.drawImage(atlas, WALL_RING.x + sx, WALL_RING.y + sy, TILE, TILE, c * TS, r * TS, TS, TS);
+        continue;
+      }
+      const t = GROUND[k] || GROUND.g;
+      drawTile(g, t, c * TS, r * TS, (c % (t.w / TILE)) * TILE, (r % (t.h / TILE)) * TILE);
     }
     // decoração no chão
     for (const o of level.objects) if (o.deco) drawObject(g, o, 0, 0);
   }
+  const rectCache = new Map();
+  function rectOf(o) {
+    if (rectCache.has(o.key)) return rectCache.get(o.key);
+    const def = level.keys[o.key]; let spr = null;
+    if (def) {
+      if (def.rect) spr = { x: def.rect[0], y: def.rect[1], w: def.rect[2], h: def.rect[3] };
+      else if (def.set === 'obj') { const l = retro.objects[def.kind]; spr = l && l[def.idx]; }
+      else if (def.set === 'biome') { const l = retro.biomes && retro.biomes[def.biome] && retro.biomes[def.biome][def.kind]; spr = l && l[def.idx % (l.length || 1)]; }
+      else { const l = retro.sets && retro.sets[def.set]; spr = l && l[def.idx]; }
+    }
+    rectCache.set(o.key, spr || null);
+    return spr || null;
+  }
   function drawObject(g, o, camX, camY) {
-    const bm = (retro.biomes && retro.biomes[level.biome]) || retro.objects;
-    let list = bm[o.kind] || [];
-    if (!list.length) list = bm.bush && bm.bush.length ? bm.bush : retro.objects[o.kind]; // deserto: cactos no lugar de árvores
-    if (!list.length) return;
-    const spr = list[o.idx % list.length];
+    const spr = rectOf(o);
+    if (!spr) return;
     // âncora: base centrada no tile de apoio (linha ty+th-1)
     const bx = (o.tx + o.tw / 2) * TS, by = (o.ty + o.th) * TS;
     g.drawImage(atlas, spr.x, spr.y, spr.w, spr.h, Math.round(bx - spr.w * S / 2 - camX), Math.round(by - spr.h * S - camY), spr.w * S, spr.h * S);
@@ -165,18 +192,22 @@ const Arena = (() => {
     ctx.drawImage(heartsImg, r.x, r.y, r.w, r.h, x, y, size, size);
   }
   function render() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#1d3b2a'; ctx.fillRect(0, 0, W, H);
+    let VW = W, VH = H;
+    if (overview) { const k = Math.min(W / (level.width * S), H / (level.height * S)); camera.x = 0; camera.y = 0; VW = W / k; VH = H / k; ctx.setTransform(k, 0, 0, k, 0, 0); }
     const cx = Math.round(camera.x), cy = Math.round(camera.y);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(ground, cx, cy, W, H, 0, 0, W, H);
+    ctx.drawImage(ground, cx, cy, VW, VH, 0, 0, VW, VH);
     // objetos e personagens ordenados pela base (y)
     const t = performance.now() / 1000;
     const items = [];
-    for (const o of level.objects) if (!o.deco) { const by = (o.ty + o.th) * TS, bx = (o.tx + o.tw / 2) * TS; if (bx > cx - 200 && bx < cx + W + 200 && by > cy - 50 && by < cy + H + 300) items.push({ y: by - 4, draw: () => drawObject(ctx, o, cx, cy) }); }
+    for (const o of level.objects) if (!o.deco) { const by = (o.ty + o.th) * TS, bx = (o.tx + o.tw / 2) * TS; if (bx > cx - 200 && bx < cx + VW + 200 && by > cy - 50 && by < cy + VH + 300) items.push({ y: by - 4, draw: () => drawObject(ctx, o, cx, cy) }); }
     for (const r of remote.values()) items.push({ y: r.y, draw: () => { const hurtFor = r.hurtAt ? (performance.now() - r.hurtAt) / 1000 : 99; const blink = hurtFor < HIT_INVULN && Math.floor(hurtFor * 12) % 2 === 0; drawHeroAt(r, r.x, r.y, r.a === 'a' ? 'a' : r.a, r.a === 'a' && r.attackT >= 0 ? r.attackT : t, r.alive ? (blink ? 0.35 : 1) : 0.6); } });
     items.push({ y: player.y, draw: () => { const blink = player.invuln > 0 && Math.floor(player.animTime * 12) % 2 === 0; drawHeroAt(player, player.x, player.y, animOf(player), player.attackT >= 0 ? player.attackT : player.animTime, player.alive ? (blink ? 0.35 : 1) : 0.6); } });
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     // HUD: corações grandes
     for (let i = 0; i < MAX_HP; i++) drawHeart(16 + i * 40, 12, 36, i < player.hp);
     // contagem / eliminado
@@ -207,7 +238,8 @@ const Arena = (() => {
   }
   // { seed, startAt, serverNow, clockOffset, id, hero, nick, hp, alive, spawn:{x,y} (px do mapa em 1×), onState, onAttack, onHit }
   function start(opts) {
-    level = ArenaLevel.generate(opts.seed, (bm) => Object.fromEntries(Object.entries((retro.biomes && retro.biomes[bm]) || retro.objects).map(([k, v]) => [k, v.length])));
+    level = Arenas.build(opts.seed | 0); // seed = índice da arena fixa
+    rectCache.clear();
     prerenderGround();
     remote.clear(); hitSent.clear();
     clockOffset = Number.isFinite(opts.clockOffset) ? opts.clockOffset : opts.serverNow - Date.now();
@@ -252,7 +284,8 @@ const Arena = (() => {
     }
   }
   function remoteAttack(id) { const r = remote.get(id); if (r) { r.attackT = 0; r.a = 'a'; } }
-  const stats = () => ({ time: now, hp: player.hp, alive: player.alive, dashes: 4, dashMax: 4, coins: 0, boost: 0, finished: false });
+  const stats = () => ({ time: now, hp: player.hp, alive: player.alive, dashes: 4, dashMax: 4, coins: 0, boost: 0, finished: false, arena: level ? level.name : '' });
   function setMuted(v) { muted = v; }
-  return { load, start, stop, setRemote, setVirtualInput, setFrozen, setClockOffset, applyDamage, remoteAttack, stats, setMuted, MAX_HP, S, W, H };
+  function setOverview(v) { overview = !!v; }
+  return { load, start, stop, setRemote, setVirtualInput, setFrozen, setClockOffset, applyDamage, remoteAttack, stats, setMuted, setOverview, MAX_HP, S, W, H };
 })();

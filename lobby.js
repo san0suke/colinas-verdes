@@ -224,7 +224,7 @@
       onHit: (id) => sendMsg('hit', { target: id }),
     });
     pushRemote();
-    setNote('');
+    setNote('Arena: ' + (Arena.stats().arena || ''));
   }
 
   function enterRoom(r, list, raceInfo, arenaInfo) {
@@ -435,7 +435,7 @@
     // ?solo=1&seed=N: entra direto jogando sozinho (útil para testes)
     const q = new URLSearchParams(location.search);
     if (q.get('hero')) { show('hero'); HeroEditor.show(); } // ?hero=1 abre o editor direto (testes)
-    if (q.get('arena')) { setEngine(Arena); show('game'); Arena.start({ seed: +(q.get('seed') || 7), startAt: Date.now() + 1000, serverNow: Date.now(), id: 'me', hero: heroStr, nick: nick() }); }
+    if (q.get('arena')) { setEngine(Arena); show('game'); Arena.start({ seed: +(q.get('seed') || 0), startAt: Date.now() + 1000, serverNow: Date.now(), id: 'me', hero: heroStr, nick: nick() }); if (q.get('overview')) Arena.setOverview(true); }
     if (q.get('solo')) { if (q.get('seed')) soloSeed = +q.get('seed'); enterRoom(null); if (q.get('x')) Game.__test.player.x = +q.get('x'); }
   })().catch((err) => { setStatus('Erro: ' + err.message, 'error'); console.error(err); });
 })();

@@ -7,7 +7,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const Level = require('../level.js');
-const ArenaLevel = require('../arena-level.js');
+const Arenas = require('../arenas.js');
 
 const PORT = process.env.PORT || 8000;
 const STATIC_DIR = path.join(__dirname, '..');
@@ -76,8 +76,10 @@ function arenaSpawn(room, c) {
 }
 function startArena(room, except) {
   clearTimeout(room.nextTimer);
-  const seed = crypto.randomInt(1, 2 ** 31);
-  const level = ArenaLevel.generate(seed);
+  // arena fixa: índice diferente do anterior
+  const prev = room.arena ? room.arena.seed : -1;
+  let seed = crypto.randomInt(0, Arenas.count); if (Arenas.count > 1) while (seed === prev) seed = crypto.randomInt(0, Arenas.count);
+  const level = Arenas.build(seed);
   room.arena = { seed, level, startAt: Date.now() + COUNTDOWN_MS, phase: 'fighting', deaths: [], results: null, nextAt: null, spawnIdx: 0, spawnOf: new Map() };
   for (const p of room.players.values()) arenaSpawn(room, p);
   for (const p of room.players.values()) if (p !== except) send(p, 'arena_start', arenaView(room, p));
