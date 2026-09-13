@@ -8,7 +8,6 @@ const Game = (() => {
   const ASSETS = {
     clouds:    'assets/bg/background_clouds.png',
     hillsFar:  'assets/bg/background_fade_hills.png',
-    hillsNear: 'assets/bg/background_color_hills.png',
     groundTop: 'assets/tiles/terrain_grass_block_top.png',
     groundMid: 'assets/tiles/terrain_grass_block_center.png',
   };
@@ -29,38 +28,15 @@ const Game = (() => {
     });
   }
 
-  // Os fundos do pack são opacos: a cor do pixel superior-esquerdo (céu/branco)
-  // vira transparente para que as camadas possam ser empilhadas.
-  // `pixel(r, g, b)` opcional decide o resto: false = transparente, [r, g, b] = recolore, outro = mantém.
-  function keyOutTopColor(img, pixel) {
+  // Pré-escala a imagem uma única vez e cria um pattern repetido na horizontal (os tiles
+  // de fundo do pack têm 256 px e emendam perfeitamente).
+  function makeLayer(ctx, img, scale) {
     const c = document.createElement('canvas');
-    c.width = img.width; c.height = img.height;
+    c.width = Math.round(img.width * scale);
+    c.height = Math.round(img.height * scale);
     const g = c.getContext('2d');
-    g.drawImage(img, 0, 0);
-    const data = g.getImageData(0, 0, c.width, c.height);
-    const p = data.data;
-    const r0 = p[0], g0 = p[1], b0 = p[2];
-    for (let i = 0; i < p.length; i += 4) {
-      const r = p[i], gg = p[i + 1], b = p[i + 2];
-      if (r === r0 && gg === g0 && b === b0) { p[i + 3] = 0; continue; }
-      if (!pixel) continue;
-      const out = pixel(r, gg, b);
-      if (out === false) p[i + 3] = 0;
-      else if (Array.isArray(out)) { p[i] = out[0]; p[i + 1] = out[1]; p[i + 2] = out[2]; }
-    }
-    g.putImageData(data, 0, 0);
-    return { canvas: c, keyColor: `rgb(${r0},${g0},${b0})` };
-  }
-
-  // Pré-escala a camada uma única vez (escala inteira) e cria um pattern repetido,
-  // assim a emenda entre repetições nunca cai em coordenada fracionária.
-  function makeLayer(ctx, keyed, scale) {
-    const c = document.createElement('canvas');
-    c.width = keyed.canvas.width * scale;
-    c.height = keyed.canvas.height * scale;
-    const g = c.getContext('2d');
-    g.imageSmoothingEnabled = false;
-    g.drawImage(keyed.canvas, 0, 0, c.width, c.height);
+    g.imageSmoothingEnabled = true;
+    g.drawImage(img, 0, 0, c.width, c.height);
     return { pattern: ctx.createPattern(c, 'repeat-x'), width: c.width, height: c.height };
   }
 
@@ -86,25 +62,19 @@ const Game = (() => {
   const BOUNCE_SPEED = 1500;     // px/s — quica ~510 px (pulo normal sobe ~150 px)
   const STOMP_TOLERANCE = 14;    // px — quanto os pés podem já ter passado da cabeça no frame anterior
 
-  // As imagens do pack misturam camadas: fade_hills tem morros claros (221,239,255) e uma faixa
-  // mais escura (195,227,255) na frente; color_hills tem morros azuis atrás dos verdes. Cada uma
-  // vira uma camada própria (src = imagem de origem, pixel = filtro) com velocidade e altura próprias;
-  // quanto mais perto, mais rápido e mais baixo. offsetY > 0 desce a camada (o chão cobre a sobra).
-  const LIGHT_BLUE = [221, 239, 255];
+  // Fundo como nos exemplos do Kenney: duas faixas empilhadas, sem recortes.
+  // A faixa de nuvens termina em branco e a de morros começa em branco, então
+  // podem se mover em velocidades diferentes que a emenda continua invisível.
+  // `top`: y da borda superior da faixa no canvas (escala 1,5 → faixas de 384 px).
+  const SKY_COLOR = 'rgb(195,227,255)'; // mesma cor do topo do tile de nuvens
   const PARALLAX = [
-    // nuvens: só as brancas — a imagem também traz nuvens azul-claras atrás, que pareciam uma 3ª camada de morros
-    { key: 'clouds',    src: 'clouds',    factor: 0.10, scale: 2, offsetY: -120, pixel: (r) => r > 240 ? true : false },
-    // morros claros: tudo que não é branco vira azul-claro (preenche o que a faixa escura cobria)
-    { key: 'hillsFar',  src: 'hillsFar',  factor: 0.25, scale: 2, offsetY: -30, pixel: () => LIGHT_BLUE },
-    // faixa azul mais escura: só ela, o resto some
-    { key: 'hillsMid',  src: 'hillsFar',  factor: 0.40, scale: 2, offsetY: 10,  pixel: (r, g) => g < 232 ? true : false },
-    // morros verdes: descarta os azuis desenhados atrás (azul dominante)
-    { key: 'hillsNear', src: 'hillsNear', factor: 0.60, scale: 2, offsetY: 55,  pixel: (r, g, b) => b > g ? false : true },
+    { key: 'hillsFar', factor: 0.30, scale: 1.5, top: 159 }, // morros: crista em ~330, chão em 412
+    { key: 'clouds',   factor: 0.10, scale: 1.5, top: -54 }, // nuvens: base branca encosta na crista
   ];
 
   // ---------- Estado ----------
   let canvas, ctx;
-  let img = {}, chars = {}, bg = {}, skyColor = '#cbe6ff';
+  let img = {}, chars = {}, bg = {};
   let loaded = null;
 
   const player = { x: 200, y: GROUND_Y, vx: 0, vy: 0, w: 56, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, animTime: 0, color: 'green', nick: '' };
@@ -205,14 +175,13 @@ const Game = (() => {
 
   // ---------- Render ----------
   function drawParallax() {
-    ctx.fillStyle = skyColor;
+    ctx.fillStyle = SKY_COLOR;
     ctx.fillRect(0, 0, W, H);
     for (const layer of PARALLAX) {
       const { pattern, width, height } = bg[layer.key];
-      const dy = GROUND_Y - height + 6 + layer.offsetY;
       const off = -Math.round((camera.x * layer.factor) % width);
       ctx.save();
-      ctx.translate(off, dy);
+      ctx.translate(off, layer.top);
       ctx.fillStyle = pattern;
       ctx.fillRect(-off, 0, W, height);
       ctx.restore();
@@ -288,11 +257,7 @@ const Game = (() => {
         const set = await Promise.all(Object.entries(CHAR_ASSETS[color]).map(async ([k, src]) => [k, await loadImage(src)]));
         chars[color] = Object.fromEntries(set);
       }
-      for (const layer of PARALLAX) {
-        const keyed = keyOutTopColor(img[layer.src], layer.pixel);
-        bg[layer.key] = makeLayer(ctx, keyed, layer.scale);
-        if (layer.key === 'clouds') skyColor = keyed.keyColor;
-      }
+      for (const layer of PARALLAX) bg[layer.key] = makeLayer(ctx, img[layer.key], layer.scale);
     })();
     return loaded;
   }
