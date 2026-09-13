@@ -130,9 +130,9 @@ gggggggggggggggggggggggggg`),
     {
       name: 'Floresta', theme: 'forest',
       ground: rows(`
-gggggggggggggggggggggggggg
-gggggggggggggggggggggggggg
-gggggggggggggggggggggggggg
+gggggggggggggggggggggffggg
+gggggggggggggggggggggffggg
+gggggggggggggggggggggffggg
 gggggdggggggggggggggwwwggg
 ggggggdgggggggggggggwwwwgg
 gggggggdddgggggggggggwwwgg
@@ -148,7 +148,7 @@ gggggggggggggggggggggggggg
 gggggggggggggggggggggggggg`),
       objects: [
         // borda densa de árvores
-        ...Array.from({ length: 13 }, (_, i) => ({ k: i % 3 === 0 ? 'grove' : (i % 3 === 1 ? 'pines' : 'treeG'), tx: i * 2, ty: -1 })),
+        ...Array.from({ length: 13 }, (_, i) => ({ k: i % 3 === 0 ? 'grove' : (i % 3 === 1 ? 'pines' : 'treeG'), tx: i * 2, ty: -1 })).filter((o) => o.tx < 20 || o.tx > 22), { k: 'treeG', tx: 18, ty: -1 }, { k: 'treeG', tx: 23, ty: -1 },
         ...Array.from({ length: 13 }, (_, i) => ({ k: i % 3 === 1 ? 'grove' : 'treeG2', tx: i * 2, ty: 14 })),
         ...Array.from({ length: 7 }, (_, i) => ({ k: 'treeG3', tx: -1, ty: i * 2 + 1 })),
         ...Array.from({ length: 7 }, (_, i) => ({ k: 'treeG', tx: 25, ty: i * 2 + 1 })),
@@ -167,10 +167,10 @@ ssssssssssssssssssssssssss
 ssssssssssssssssssssssssss
 ssssssssssssssssssssssssss
 ssssssssssssssssssssssssss
-sssssssssssssggggggsssssss
-sssssssssssssgwwwwgsssssss
-sssssssssssssgwwwwgsssssss
-sssssssssssssggggggsssssss
+ssssssssssssssswwsssssssss
+sssssssssssssswwwwssssssss
+sssssssssssssswwwwssssssss
+sssssssssssssswwssssssssss
 ssssssssssssssssssssssssss
 ssssssssssssssssssssssssss
 ssssssssssssssssssssssssss
@@ -197,11 +197,11 @@ nnnnnnnnnnnnnnnnnnnnnnnnnn
 nnnnnnnnnnnnnnnnnnnnnnnnnn
 nnnnnnnnnnnnnnnnnnnnnnnnnn
 nnnnnnnnnnnnnnnnnnnnnnnnnn
-nnnnnnnnnnnnnnnnnnnnnnnnnn
+nnnnnnnnnnnwwwnnnnnnnnnnnn
 nnnnnnnnnnwwwwwwnnnnnnnnnn
-nnnnnnnnnnwwwwwwnnnnnnnnnn
-nnnnnnnnnnwwwwwwnnnnnnnnnn
-nnnnnnnnnnnnnnnnnnnnnnnnnn
+nnnnnnnnnwwwwwwwwnnnnnnnnn
+nnnnnnnnnnwwwwwnnnnnnnnnnn
+nnnnnnnnnnnnwwnnnnnnnnnnnn
 nnnnnnnnnnnnnnnnnnnnnnnnnn
 nnnnnnnnnnnnnnnnnnnnnnnnnn
 nnnnnnnnnnnnnnnnnnnnnnnnnn
@@ -255,7 +255,7 @@ kkkkkkkkkkkkkkkkkkkkkkkkkk`),
   function build(i) {
     const a = ARENAS[((i % ARENAS.length) + ARENAS.length) % ARENAS.length];
     const ground = a.ground; const rowsN = ground.length, cols = ground[0].length;
-    const blocked = ground.map((row) => row.split('').map((ch) => (ch === 'w' || ch === 'l' || ch === 'k' || ch === 'W') ? 1 : 0));
+    const blocked = ground.map((row) => row.split('').map((ch) => (ch === 'w' || ch === 'f' || ch === 'l' || ch === 'k' || ch === 'W') ? 1 : 0));
     const objects = [];
     for (const o of a.objects) {
       const def = K[o.k]; if (!def) continue;

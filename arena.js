@@ -10,7 +10,7 @@ const Arena = (() => {
   const DASH_SPEED = 720, DASH_TIME = 0.18, DASH_CD = 0.6;    // dash sem limite de usos, com um intervalo curto entre eles
 
   let canvas, ctx, loaded = null;
-  let atlas = null, retro = null;                 // imagem do atlas + índice (tiles/objetos)
+  let atlas = null, retro = null, autoImg = null;                 // imagem do atlas + índice (tiles/objetos)
   let heartsImg = null, heartRects = null;        // corações do Kenney
   let level = null, ground = null;                // ground: canvas pré-renderizado do chão
   const player = { id: '', x: 0, y: 0, vx: 0, vy: 0, facing: 1, hp: MAX_HP, alive: true, attackT: -1, cd: 0, invuln: 0, hurtT: 0, kx: 0, ky: 0, hero: null, nick: '', animTime: 0, deadAt: 0 };
@@ -59,16 +59,33 @@ const Arena = (() => {
     p: { x: 48, y: 528, w: 32, h: 32 }, w: { x: 192, y: 528, w: 48, h: 48 }, l: { x: 80, y: 528, w: 32, h: 32 },
   };
   const WALL_RING = { x: 869, y: 337, w: 48, h: 48 }; // anel de pedra cinza (9 fatias) para paredes da masmorra
-  // blocos de água 3×3 com borda (9 fatias) da seção Overworld: azul-escuro (lagos) e ciano (gelo/oásis)
-  const WATER_BLOCKS = { deep: { x: 112, y: 1152 }, cyan: { x: 64, y: 1152 } }; // azul profundo (lagos) e ciano (neve/oásis)
-  const waterBlock = () => (level.theme === 'winter' || level.theme === 'desert') ? WATER_BLOCKS.cyan : WATER_BLOCKS.deep;
   const isWall = (r, c) => r >= 0 && c >= 0 && r < level.rows && c < level.cols && level.ground[r][c] === 'W';
-  const isWater = (r, c) => r >= 0 && c >= 0 && r < level.rows && c < level.cols && level.ground[r][c] === 'w';
-  // fatia do bloco de água pela vizinhança: borda onde não há água ao lado
-  function waterSlice(r, c) {
-    const U = isWater(r - 1, c), D = isWater(r + 1, c), L = isWater(r, c - 1), R = isWater(r, c + 1);
-    const sx = !L ? 0 : !R ? 32 : 16, sy = !U ? 0 : !D ? 32 : 16;
-    return { sx, sy };
+  const cellIs = (r, c, ch) => r >= 0 && c >= 0 && r < level.rows && c < level.cols && level.ground[r][c] === ch;
+  // ---- grade dual (autotiles 4×4 do pacote em assets/retro/auto.png) ----
+  // cada peça fica deslocada meio tile e é escolhida pelos 4 cantos que são do material: TL=1, TR=2, BL=4, BR=8 → [tx, ty] na grade 4×4
+  const DUAL = [[0, 3], [3, 3], [0, 2], [1, 2], [0, 0], [3, 2], [2, 3], [3, 1], [1, 3], [0, 1], [1, 0], [2, 2], [3, 0], [2, 0], [1, 1], [2, 1]];
+  const WATER_SET_Y = { village: 0, forest: 0, desert: 192, winter: 128, dungeon: 64 }; // linha do conjunto de água por tema (4 quadros de 64×64)
+  const TRAIL_SET = { x: 0, y: 320 };                  // grama + terra alaranjada (1 quadro)
+  const WF = { x: 64, y: 320 }, WF_FX = { x: 64, y: 336 }; // cachoeira: 3 colunas (esq/meio/dir) × 3 quadros; espuma da base 16×32 × 3 quadros
+  const BASE_OF = { village: 'g', forest: 'g', desert: 's', winter: 'n', dungeon: 'p' }; // chão por baixo da água/cachoeira
+  let waterTiles = [], wfTiles = [], wfFx = [];
+  // lista de peças da grade dual para o caractere ch (vértices entre 4 células)
+  function dualTiles(ch) {
+    const out = [];
+    for (let vr = 0; vr <= level.rows; vr++) for (let vc = 0; vc <= level.cols; vc++) {
+      const m = (cellIs(vr - 1, vc - 1, ch) ? 1 : 0) | (cellIs(vr - 1, vc, ch) ? 2 : 0) | (cellIs(vr, vc - 1, ch) ? 4 : 0) | (cellIs(vr, vc, ch) ? 8 : 0);
+      if (m) out.push({ x: vc * TS - TS / 2, y: vr * TS - TS / 2, tx: DUAL[m][0], ty: DUAL[m][1], m });
+    }
+    return out;
+  }
+  // camadas animadas (água, cachoeira) desenhadas por cima do chão pré-renderizado
+  function drawWater(cx, cy, VW, VH, t) {
+    if (!autoImg) return;
+    const fr = Math.floor(t * 3) % 4, wy = WATER_SET_Y[level.theme] || 0;
+    for (const w of waterTiles) if (w.x + TS > cx && w.x < cx + VW && w.y + TS > cy && w.y < cy + VH) ctx.drawImage(autoImg, fr * 64 + w.tx * TILE, wy + w.ty * TILE, TILE, TILE, w.x - cx, w.y - cy, TS, TS);
+    const wf = Math.floor(t * 9) % 3;
+    for (const w of wfTiles) ctx.drawImage(autoImg, WF.x + wf * 48 + w.col * TILE, WF.y, TILE, TILE, w.x - cx, w.y - cy, TS, TS);
+    for (const w of wfFx) ctx.drawImage(autoImg, WF_FX.x + wf * TILE, WF_FX.y, TILE, TILE * 2, w.x - cx, w.y - cy, TS, TS * 2);
   }
   function prerenderGround() {
     ground = document.createElement('canvas'); ground.width = level.width * S; ground.height = level.height * S;
@@ -77,7 +94,8 @@ const Arena = (() => {
     for (let r = 0; r < level.rows; r++) for (let c = 0; c < level.cols; c++) {
       const k = level.ground[r][c];
       if (k === 'k') continue;
-      if (k === 'w') { const { sx, sy } = waterSlice(r, c), wb = waterBlock(); g.drawImage(atlas, wb.x + sx, wb.y + sy, TILE, TILE, c * TS, r * TS, TS, TS); continue; }
+      if (k === 'w' || k === 'f') { const b = GROUND[BASE_OF[level.theme] || 'g']; drawTile(g, b, c * TS, r * TS, (c % (b.w / TILE)) * TILE, (r % (b.h / TILE)) * TILE); continue; } // água/cachoeira: chão por baixo, camada animada por cima
+      if (k === 'd') { g.drawImage(autoImg, TRAIL_SET.x, TRAIL_SET.y + 48, TILE, TILE, c * TS, r * TS, TS, TS); continue; } // terra da trilha (peça cheia do conjunto)
       if (k === 'W') {
         drawTile(g, GROUND.p, c * TS, r * TS, (c % 2) * TILE, (r % 2) * TILE); // piso por baixo (o anel tem cantos transparentes)
         // 9 fatias do anel: escolhe pela vizinhança (linhas de 1 tile)
@@ -92,6 +110,14 @@ const Arena = (() => {
       }
       const t = GROUND[k] || GROUND.g;
       drawTile(g, t, c * TS, r * TS, (c % (t.w / TILE)) * TILE, (r % (t.h / TILE)) * TILE);
+    }
+    // beiradas da trilha (grade dual, estática)
+    for (const d of dualTiles('d')) if (d.m !== 15) g.drawImage(autoImg, TRAIL_SET.x + d.tx * TILE, TRAIL_SET.y + d.ty * TILE, TILE, TILE, d.x, d.y, TS, TS);
+    // lagos e cachoeira (animados no render)
+    waterTiles = dualTiles('w'); wfTiles = []; wfFx = [];
+    for (let r = 0; r < level.rows; r++) for (let c = 0; c < level.cols; c++) if (cellIs(r, c, 'f')) {
+      wfTiles.push({ x: c * TS, y: r * TS, col: !cellIs(r, c - 1, 'f') ? 0 : !cellIs(r, c + 1, 'f') ? 2 : 1 });
+      if (!cellIs(r + 1, c, 'f')) wfFx.push({ x: c * TS, y: r * TS }); // espuma na base (metade sobre a queda, metade sobre a água)
     }
     // decoração no chão
     for (const o of level.objects) if (o.deco) drawObject(g, o, 0, 0);
@@ -211,8 +237,9 @@ const Arena = (() => {
     const cx = Math.round(camera.x), cy = Math.round(camera.y);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(ground, cx, cy, VW, VH, 0, 0, VW, VH);
-    // objetos e personagens ordenados pela base (y)
     const t = performance.now() / 1000;
+    drawWater(cx, cy, VW, VH, t);
+    // objetos e personagens ordenados pela base (y)
     const items = [];
     for (const o of level.objects) if (!o.deco) { const by = (o.ty + o.th) * TS, bx = (o.tx + o.tw / 2) * TS; if (bx > cx - 200 && bx < cx + VW + 200 && by > cy - 50 && by < cy + VH + 300) items.push({ y: by - 4, draw: () => drawObject(ctx, o, cx, cy) }); }
     for (const r of remote.values()) items.push({ y: r.y, draw: () => { const hurtFor = r.hurtAt ? (performance.now() - r.hurtAt) / 1000 : 99; const blink = hurtFor < HIT_INVULN && Math.floor(hurtFor * 12) % 2 === 0; drawHeroAt(r, r.x, r.y, r.a === 'a' ? 'a' : r.a, r.a === 'a' && r.attackT >= 0 ? r.attackT : t, r.alive ? (blink ? 0.35 : 1) : 0.6); } });
@@ -241,7 +268,7 @@ const Arena = (() => {
     if (loaded) return loaded;
     loaded = (async () => {
       const img = (src) => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
-      [atlas, retro, heartsImg] = await Promise.all([img('assets/retro/atlas.png'), fetch('assets/retro/index.json').then((r) => r.json()), img('assets/sheets/spritesheet-tiles-default.png')]);
+      [atlas, retro, heartsImg, autoImg] = await Promise.all([img('assets/retro/atlas.png'), fetch('assets/retro/index.json').then((r) => r.json()), img('assets/sheets/spritesheet-tiles-default.png'), img('assets/retro/auto.png')]);
       const xml = await fetch('assets/sheets/spritesheet-tiles-default.xml').then((r) => r.text());
       const rect = (name) => { const m = xml.match(new RegExp('name="' + name + '" x="(\\d+)" y="(\\d+)" width="(\\d+)" height="(\\d+)"')); return { x: +m[1], y: +m[2], w: +m[3], h: +m[4] }; };
       heartRects = { full: rect('hud_heart'), empty: rect('hud_heart_empty') };
