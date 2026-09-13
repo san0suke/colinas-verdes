@@ -54,7 +54,8 @@
   :root[data-theme="dark"] .masthead h1 { color: var(--grass); }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .masthead h1 { color: var(--grass); } }
   .masthead p { margin: 6px 0 0; color: var(--muted); }
-  .me { display: flex; align-items: center; gap: 10px; }
+  .me { display: grid; gap: 8px; justify-items: end; }
+  .me-row { display: flex; align-items: center; gap: 10px; }
   .me label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
   .netstatus { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); }
   .netstatus[data-kind="ok"] { color: var(--ok); }
@@ -237,10 +238,14 @@
       <p>Crie uma sala ou entre em uma para jogar com outras pessoas.</p>
     </div>
     <div class="me">
-      <label for="nick">Apelido</label>
-      <input type="text" id="nick" maxlength="16" placeholder="Jogador" autocomplete="nickname">
-      <button type="button" id="btn-hero" class="btn small hero-btn"><canvas id="hero-avatar" width="48" height="48" aria-hidden="true"></canvas> Personagem</button>
-      <span id="netstatus" class="netstatus" data-kind="warn">Carregando…</span>
+      <div class="me-row">
+        <label for="nick">Apelido</label>
+        <input type="text" id="nick" maxlength="16" placeholder="Jogador" autocomplete="nickname">
+        <span id="netstatus" class="netstatus" data-kind="warn">Carregando…</span>
+      </div>
+      <div class="me-row">
+        <button type="button" id="btn-hero" class="btn small hero-btn"><canvas id="hero-avatar" width="48" height="48" aria-hidden="true"></canvas> Personagem</button>
+      </div>
     </div>
   </header>
 
@@ -383,13 +388,13 @@
     </div>
   </div>
 
-<script src="config.js?v=19768d4"></script>
-<script src="level.js?v=19768d4"></script>
-<script src="hero.js?v=19768d4"></script>
-<script src="heroeditor.js?v=19768d4"></script>
-<script src="game.js?v=19768d4"></script>
-<script src="music.js?v=19768d4"></script>
-<script src="lobby.js?v=19768d4"></script>
-<script src="touch.js?v=19768d4"></script>
+<script src="config.js?v=60478b8"></script>
+<script src="level.js?v=60478b8"></script>
+<script src="hero.js?v=60478b8"></script>
+<script src="heroeditor.js?v=60478b8"></script>
+<script src="game.js?v=60478b8"></script>
+<script src="music.js?v=60478b8"></script>
+<script src="lobby.js?v=60478b8"></script>
+<script src="touch.js?v=60478b8"></script>
 </body>
 </html>
