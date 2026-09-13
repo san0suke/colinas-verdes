@@ -60,8 +60,8 @@ const Arena = (() => {
   };
   const WALL_RING = { x: 869, y: 337, w: 48, h: 48 }; // anel de pedra cinza (9 fatias) para paredes da masmorra
   // blocos de água 3×3 com borda (9 fatias) da seção Overworld: azul-escuro (lagos) e ciano (gelo/oásis)
-  const WATER_BLOCKS = { foam: { x: 272, y: 304 }, cyan: { x: 64, y: 1152 } }; // espuma (lagos) e ciano (lago congelado)
-  const waterBlock = () => level.theme === 'winter' ? WATER_BLOCKS.cyan : WATER_BLOCKS.foam;
+  const WATER_BLOCKS = { deep: { x: 112, y: 1152 }, cyan: { x: 64, y: 1152 } }; // azul profundo (lagos) e ciano (neve/oásis)
+  const waterBlock = () => (level.theme === 'winter' || level.theme === 'desert') ? WATER_BLOCKS.cyan : WATER_BLOCKS.deep;
   const isWall = (r, c) => r >= 0 && c >= 0 && r < level.rows && c < level.cols && level.ground[r][c] === 'W';
   const isWater = (r, c) => r >= 0 && c >= 0 && r < level.rows && c < level.cols && level.ground[r][c] === 'w';
   // fatia do bloco de água pela vizinhança: borda onde não há água ao lado
