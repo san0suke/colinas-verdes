@@ -107,7 +107,7 @@ const Game = (() => {
   let img = {}, chars = {}, bg = {}, skyColor = '#cbe6ff';
   let loaded = null;
 
-  const player = { x: 200, y: GROUND_Y, vx: 0, vy: 0, w: 56, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, animTime: 0, color: 'green', nick: '' };
+  const player = { x: 200, y: GROUND_Y, vx: 0, vy: 0, w: 56, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, animTime: 0, color: 'green', nick: '' };
   const camera = { x: 0 };
   const remote = new Map(); // peer -> { x, y, tx, ty, f, a, color, nick }
 
@@ -156,7 +156,8 @@ const Game = (() => {
       player.coyote = 0;
       player.jumpBuffer = 0;
     }
-    if (!jumpHeld() && player.vy < 0) player.vy *= Math.pow(JUMP_CUT, dt * 60);
+    if (player.vy >= 0) player.bouncing = false;
+    if (!jumpHeld() && player.vy < 0 && !player.bouncing) player.vy *= Math.pow(JUMP_CUT, dt * 60);
 
     player.vy += GRAVITY * dt;
     const prevY = player.y;
@@ -170,6 +171,7 @@ const Game = (() => {
         if (Math.abs(player.x - r.x) < BODY_W && prevY <= headY + STOMP_TOLERANCE && player.y >= headY) {
           player.y = headY;
           player.vy = -BOUNCE_SPEED;
+          player.bouncing = true; // sobe inteiro mesmo sem segurar o pulo
           player.coyote = 0;
           break;
         }
