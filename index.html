@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Colinas Verdes</title>
+<title>Play Patch</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700&display=swap">
 <style>
@@ -45,6 +45,8 @@
   #lobby { max-width: 980px; margin: 0 auto; padding: 32px 20px 48px; }
   .masthead { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
   .masthead h1 { font-size: 44px; font-weight: 700; letter-spacing: -0.01em; line-height: 1; color: var(--grass-ink); }
+  .masthead .logo img { display: block; width: auto; height: 104px; filter: drop-shadow(0 4px 10px rgba(10,30,50,.18)); }
+  @media (max-width: 480px) { .masthead .logo img { height: 76px; } }
   :root[data-theme="dark"] .masthead h1 { color: var(--grass); }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .masthead h1 { color: var(--grass); } }
   .masthead p { margin: 6px 0 0; color: var(--muted); }
@@ -201,7 +203,7 @@
 <section id="lobby">
   <header class="masthead">
     <div>
-      <h1>Colinas Verdes</h1>
+      <h1 class="logo"><img src="assets/ui/logo.png" alt="Play Patch" width="1324" height="704"></h1>
       <p>Crie uma sala ou entre em uma para jogar com outras pessoas.</p>
     </div>
     <div class="me">
@@ -325,11 +327,11 @@
     </div>
   </div>
 
-<script src="config.js?v=ec75002"></script>
-<script src="level.js?v=ec75002"></script>
-<script src="game.js?v=ec75002"></script>
-<script src="music.js?v=ec75002"></script>
-<script src="lobby.js?v=ec75002"></script>
-<script src="touch.js?v=ec75002"></script>
+<script src="config.js?v=aed0c4b"></script>
+<script src="level.js?v=aed0c4b"></script>
+<script src="game.js?v=aed0c4b"></script>
+<script src="music.js?v=aed0c4b"></script>
+<script src="lobby.js?v=aed0c4b"></script>
+<script src="touch.js?v=aed0c4b"></script>
 </body>
 </html>
