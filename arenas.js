@@ -30,6 +30,7 @@
     lamp:   { set: 'dungeon', idx: 39, tw: 1, th: 2, block: true },
     lamp2:  { set: 'dungeon', idx: 46, tw: 1, th: 2, block: true },
     fence3: { set: 'dungeon', idx: 78, tw: 3, th: 1, block: true },
+    bridgeV:{ set: 'dungeon', idx: 77, tw: 2, th: 2, over: true, walk: true }, // ponte vertical (2×2): caminhável, desenhada por cima da água
     post:   { set: 'fences', idx: 12, tw: 1, th: 1, block: true },
     sign:   { set: 'dungeon', idx: 60, tw: 3, th: 1, block: true },
     chest:  { set: 'dungeon', idx: 72, tw: 1, th: 1, block: true },
@@ -101,30 +102,34 @@
       ground: rows(`
 gggggggggggggggggggggggggg
 gggggggggggggggggggggggggg
-ggggggggddddddddddddgggggg
-ggggggggdggggggggggdgggggg
-ggggggggdggggggggggdgggggg
-ggdddddddggggggggggddddggg
-ggdgggggdggggggggggggggggg
-ggdgggggdggggwwgggggggdggg
-ggdgggggdggggwwgggggggdggg
-ggdgggggddddddddddddddddgg
-ggdgggggggggggggggggggdggg
-ggddddddgggggggggggggddggg
-gggggggdgggggggggggggdgggg
-gggggggddddddddddddddggggg
+gggggggggggggggggggggggggg
+ggggddddddddddddddddddgggg
+ggggggggdgggggggggdggggggg
+ggggggggdgggggggggdggggggg
+ggwwwggggggggggggggggggggg
+wwwwwwwwwwwwwwwwwwwwwwwwww
+wwwwwwwwwwwwwwwwwwwwwwwwww
+gggggggggggggggggggggwwwgg
+ggggggggdgggggggggdggggggg
+ggggggggdgggggggggdggggggg
+ggggddddddddddddddddddgggg
+gggggggggggggggggggggggggg
 gggggggggggggggggggggggggg
 gggggggggggggggggggggggggg`),
       objects: [
-        { k: 'houseA', tx: 3, ty: 1 }, { k: 'houseB', tx: 10, ty: 0 }, { k: 'cabin', tx: 18, ty: 1 }, { k: 'inn', tx: 3, ty: 13 }, { k: 'houseA', tx: 19, ty: 13 },
-        { k: 'stallG', tx: 10, ty: 12 }, { k: 'stallO', tx: 14, ty: 12 },
-        { k: 'well', tx: 15, ty: 6 },
-        { k: 'barrels', tx: 3, ty: 7 }, { k: 'crates', tx: 21, ty: 4 }, { k: 'crate', tx: 23, ty: 5 }, { k: 'sign', tx: 8, ty: 6 },
-        { k: 'lamp', tx: 9, ty: 9 }, { k: 'lamp2', tx: 18, ty: 9 }, { k: 'lamp', tx: 12, ty: 2 }, { k: 'lamp2', tx: 22, ty: 10 },
-        { k: 'fence3', tx: 3, ty: 10 }, { k: 'fence3', tx: 21, ty: 7 }, { k: 'chest', tx: 6, ty: 6 },
-        { k: 'treeG', tx: 0, ty: 4 }, { k: 'treeG2', tx: 0, ty: 8 }, { k: 'treeG', tx: 24, ty: 7 }, { k: 'treeG3', tx: 24, ty: 11 }, { k: 'treeG2', tx: 0, ty: 12 },
-        { k: 'bushG', tx: 14, ty: 3 }, { k: 'bushG2', tx: 11, ty: 7 }, { k: 'bushG', tx: 24, ty: 3 },
-        { k: 'flower', tx: 5, ty: 4 }, { k: 'flower', tx: 16, ty: 4 }, { k: 'tuft', tx: 13, ty: 10 }, { k: 'tuft2', tx: 19, ty: 11 }, { k: 'flower', tx: 2, ty: 14 }, { k: 'tuft', tx: 23, ty: 14 },
+        // casas na grama, ao lado das ruas (rua de cima: linha 3; rua de baixo: linha 12)
+        { k: 'houseA', tx: 3, ty: 0 }, { k: 'houseB', tx: 10, ty: 0 }, { k: 'cabin', tx: 19, ty: 0 },
+        { k: 'inn', tx: 3, ty: 13 }, { k: 'stallG', tx: 11, ty: 13 }, { k: 'stallO', tx: 15, ty: 13 }, { k: 'houseA', tx: 20, ty: 13 },
+        // pontes sobre o rio (duas peças empilhadas: linhas 6-7 e 8-9)
+        { k: 'bridgeV', tx: 8, ty: 6 }, { k: 'bridgeV', tx: 8, ty: 8 }, { k: 'bridgeV', tx: 17, ty: 6 }, { k: 'bridgeV', tx: 17, ty: 8 },
+        // praça entre a rua de cima e o rio
+        { k: 'well', tx: 12, ty: 4 }, { k: 'barrels', tx: 3, ty: 5 }, { k: 'sign', tx: 10, ty: 4 }, { k: 'lamp', tx: 7, ty: 4 }, { k: 'lamp2', tx: 19, ty: 4 }, { k: 'bushG', tx: 15, ty: 4 },
+        // entre o rio e a rua de baixo
+        { k: 'crates', tx: 21, ty: 10 }, { k: 'crate', tx: 24, ty: 11 }, { k: 'chest', tx: 12, ty: 10 }, { k: 'lamp', tx: 7, ty: 10 }, { k: 'lamp2', tx: 19, ty: 10 }, { k: 'bushG2', tx: 2, ty: 10 }, { k: 'bushG', tx: 14, ty: 10 },
+        // árvores nas bordas
+        { k: 'treeG', tx: 0, ty: 0 }, { k: 'treeG2', tx: 24, ty: 0 }, { k: 'treeG', tx: 0, ty: 4 }, { k: 'treeG2', tx: 24, ty: 4 }, { k: 'treeG3', tx: 0, ty: 10 }, { k: 'treeG', tx: 24, ty: 10 }, { k: 'treeG2', tx: 0, ty: 13 }, { k: 'treeG3', tx: 24, ty: 13 },
+        // decoração
+        { k: 'flower', tx: 5, ty: 4 }, { k: 'flower', tx: 16, ty: 5 }, { k: 'tuft', tx: 10, ty: 10 }, { k: 'tuft2', tx: 16, ty: 11 }, { k: 'flower', tx: 2, ty: 14 }, { k: 'tuft', tx: 23, ty: 14 }, { k: 'tuft2', tx: 22, ty: 5 }, { k: 'flower', tx: 9, ty: 1 },
       ],
     },
     {
@@ -255,16 +260,17 @@ kkkkkkkkkkkkkkkkkkkkkkkkkk`),
   function build(i) {
     const a = ARENAS[((i % ARENAS.length) + ARENAS.length) % ARENAS.length];
     const ground = a.ground; const rowsN = ground.length, cols = ground[0].length;
-    const blocked = ground.map((row) => row.split('').map((ch) => (ch === 'w' || ch === 'f' || ch === 'l' || ch === 'k' || ch === 'W') ? 1 : 0));
+    const blocked = ground.map((row) => row.split('').map((ch) => (ch === 'f' || ch === 'k' || ch === 'W') ? 1 : 0));
     const objects = [];
     for (const o of a.objects) {
       const def = K[o.k]; if (!def) continue;
       const tw = def.tw || 1, th = def.th || 1;
-      objects.push({ key: o.k, tx: o.tx, ty: o.ty, tw, th, deco: !!def.deco });
+      objects.push({ key: o.k, tx: o.tx, ty: o.ty, tw, th, deco: !!def.deco, over: !!def.over });
       if (def.block) for (let y = o.ty; y < o.ty + th; y++) for (let x = o.tx; x < o.tx + tw; x++) if (y >= 0 && x >= 0 && y < rowsN && x < cols) blocked[y][x] = 1;
     }
+    for (const o of a.objects) { const def = K[o.k]; if (!def || !def.walk) continue; for (let y = o.ty; y < o.ty + (def.th || 1); y++) for (let x = o.tx; x < o.tx + (def.tw || 1); x++) if (y >= 0 && x >= 0 && y < rowsN && x < cols) blocked[y][x] = 0; } // pontes: caminháveis
     // nascimentos: tiles livres afastados (≥ 5 tiles), determinístico
-    const free = []; for (let r = 1; r < rowsN - 1; r++) for (let c = 1; c < cols - 1; c++) if (!blocked[r][c] && !blocked[r - 1][c] && !blocked[r + 1][c]) free.push([r, c]);
+    const free = []; for (let r = 1; r < rowsN - 1; r++) for (let c = 1; c < cols - 1; c++) if (!blocked[r][c] && !blocked[r - 1][c] && !blocked[r + 1][c] && !'wl'.includes(ground[r][c]) && !'wl'.includes(ground[r - 1][c]) && !'wl'.includes(ground[r + 1][c])) free.push([r, c]);
     const spawns = []; let seed = 12345 + i * 777;
     const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
     const order = free.slice().sort(() => rnd() - 0.5);

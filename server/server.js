@@ -234,6 +234,19 @@ const handlers = {
     broadcastRoom(room, 'damage', { id: t.id, hp: t.hp, by: c.id, kx: (t.x - c.x) / d, ky: (t.y - c.y) / d });
     if (t.hp <= 0) { t.alive = false; a.deaths.push(t.id); broadcastRoom(room, 'eliminated', { id: t.id, by: c.id, alive: [...room.players.values()].filter((p) => p.alive).length }); checkArenaEnd(room); }
   },
+  // perigo do mapa (lava: 1 coração a cada ~0,7 s dentro; água: 1 coração por queda)
+  hazard(c, m) {
+    const room = c.room; if (!room || room.mode !== 'arena' || !room.arena || room.arena.phase !== 'fighting') return;
+    const a = room.arena, now = Date.now();
+    if (now < a.startAt || !c.alive) return;
+    const kind = m.kind === 'water' ? 'water' : 'lava';
+    const minGap = kind === 'water' ? 1000 : 600;
+    if (now - (c.lastHazard || 0) < minGap) return;
+    c.lastHazard = now;
+    c.hp = Math.max(0, (c.hp || 0) - 1);
+    broadcastRoom(room, 'damage', { id: c.id, hp: c.hp, by: null, kind, kx: 0, ky: 0 });
+    if (c.hp <= 0) { c.alive = false; a.deaths.push(c.id); broadcastRoom(room, 'eliminated', { id: c.id, by: null, kind, alive: [...room.players.values()].filter((p) => p.alive).length }); checkArenaEnd(room); }
+  },
   finish(c, m) {
     const room = c.room;
     if (!room || !room.race || room.race.phase !== 'racing' || c.finished) return;

@@ -18,6 +18,10 @@ const Arena = (() => {
   const camera = { x: 0, y: 0 };
   let running = false, raf = 0, last = 0, frozen = false, overview = false;
   let startAt = 0, clockOffset = 0, now = 0, hooks = {}, lastSent = '', hitSent = new Set();
+  const LAVA_TICK = 0.7;                       // s dentro da lava por coração perdido
+  const safe = { x: 0, y: 0 }; let lavaT = 0, inWater = false; // última posição em chão firme; tempo na lava; já caiu na água
+  const groundAt = (x, y) => { const c = Math.floor(x / TS), r = Math.floor(y / TS); return (r < 0 || c < 0 || r >= level.rows || c >= level.cols) ? 'k' : level.ground[r][c]; };
+  const onBridge = (x, y) => { const c = Math.floor(x / TS), r = Math.floor(y / TS); return level.objects.some((o) => o.over && c >= o.tx && c < o.tx + o.tw && r >= o.ty && r < o.ty + o.th); };
   let muted = false; const sounds = {};
   const SOUNDS = { swing: 'sfx_throw', hit: 'sfx_hurt', die: 'sfx_disappear', tick: 'sfx_select', win: 'sfx_magic', bump: 'sfx_bump' };
   function play(n) { if (muted || !sounds[n]) return; try { const a = sounds[n].cloneNode(); a.volume = 0.5; a.play().catch(() => {}); } catch {} }
@@ -189,6 +193,15 @@ const Arena = (() => {
     player.x = Math.max(TS, Math.min(level.width * S - TS, player.x)); player.y = Math.max(TS + 8, Math.min(level.height * S - TS, player.y));
     player.invuln = Math.max(0, player.invuln - dt); player.hurtT = Math.max(0, player.hurtT - dt);
     player.animTime += dt;
+    // perigos do chão (pelos pés): lava queima aos poucos; água tira um coração e devolve à margem
+    if (active) {
+      const k = groundAt(player.x, player.y - 4), bridge = k === 'w' && onBridge(player.x, player.y - 4);
+      if (k === 'l') { lavaT += dt; if (lavaT >= LAVA_TICK) { lavaT = 0; if (hooks.onHazard) hooks.onHazard('lava'); } }
+      else lavaT = LAVA_TICK * 0.6; // entra queimando logo
+      if (k === 'w' && !bridge) {
+        if (!inWater) { inWater = true; play('bump'); if (hooks.onHazard) hooks.onHazard('water'); player.x = safe.x; player.y = safe.y; player.kx = player.ky = 0; player.invuln = Math.max(player.invuln, 1.0); }
+      } else { inWater = false; if (k !== 'l' && !collides(player.x, player.y)) { safe.x = player.x; safe.y = player.y; } }
+    }
 
     // câmera
     const tx = player.x - W / 2, ty = player.y - H / 2 - 20;
@@ -242,9 +255,10 @@ const Arena = (() => {
     ctx.drawImage(ground, cx, cy, VW, VH, 0, 0, VW, VH);
     const t = performance.now() / 1000;
     drawWater(cx, cy, VW, VH, t);
+    for (const o of level.objects) if (o.over) drawObject(ctx, o, cx, cy); // pontes: sobre a água, sob os personagens
     // objetos e personagens ordenados pela base (y)
     const items = [];
-    for (const o of level.objects) if (!o.deco) { const by = (o.ty + o.th) * TS, bx = (o.tx + o.tw / 2) * TS; if (bx > cx - 200 && bx < cx + VW + 200 && by > cy - 50 && by < cy + VH + 300) items.push({ y: by - 4, draw: () => drawObject(ctx, o, cx, cy) }); }
+    for (const o of level.objects) if (!o.deco && !o.over) { const by = (o.ty + o.th) * TS, bx = (o.tx + o.tw / 2) * TS; if (bx > cx - 200 && bx < cx + VW + 200 && by > cy - 50 && by < cy + VH + 300) items.push({ y: by - 4, draw: () => drawObject(ctx, o, cx, cy) }); }
     for (const r of remote.values()) items.push({ y: r.y, draw: () => { const hurtFor = r.hurtAt ? (performance.now() - r.hurtAt) / 1000 : 99; const blink = hurtFor < HIT_INVULN && Math.floor(hurtFor * 12) % 2 === 0; drawHeroAt(r, r.x, r.y, r.a === 'a' ? 'a' : r.a, r.a === 'a' && r.attackT >= 0 ? r.attackT : t, r.alive ? (blink ? 0.35 : 1) : 0.6); } });
     items.push({ y: player.y, draw: () => { const blink = player.invuln > 0 && Math.floor(player.animTime * 12) % 2 === 0; drawHeroAt(player, player.x, player.y, animOf(player), player.attackT >= 0 ? player.attackT : player.animTime, player.alive ? (blink ? 0.35 : 1) : 0.6); } });
     items.sort((a, b) => a.y - b.y);
@@ -288,7 +302,8 @@ const Arena = (() => {
     remote.clear(); hitSent.clear();
     clockOffset = Number.isFinite(opts.clockOffset) ? opts.clockOffset : opts.serverNow - Date.now();
     startAt = opts.startAt;
-    hooks = { onState: opts.onState, onAttack: opts.onAttack, onHit: opts.onHit };
+    hooks = { onState: opts.onState, onAttack: opts.onAttack, onHit: opts.onHit, onHazard: opts.onHazard };
+    safe.x = player.x; safe.y = player.y; lavaT = 0; inWater = false;
     const sp = opts.spawn || level.spawns[0];
     Object.assign(player, { id: opts.id || '', x: sp.x * S, y: sp.y * S, vx: 0, vy: 0, facing: 1, hp: opts.hp == null ? MAX_HP : opts.hp, alive: opts.alive !== false, attackT: -1, cd: 0, invuln: 0, hurtT: 0, kx: 0, ky: 0, hero: opts.hero ? Hero.decode(opts.hero) : null, nick: opts.nick || '', animTime: 0, dashT: 0, dashCd: 0, dashDx: 1, dashDy: 0 });
     camera.x = Math.max(0, Math.min(level.width * S - W, player.x - W / 2)); camera.y = Math.max(0, Math.min(level.height * S - H, player.y - H / 2));

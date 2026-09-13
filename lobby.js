@@ -222,6 +222,7 @@
       onState: (s) => sendMsg('state', s),
       onAttack: () => sendMsg('attack', {}),
       onHit: (id) => sendMsg('hit', { target: id }),
+      onHazard: (kind) => sendMsg('hazard', { kind }),
     });
     pushRemote();
     setNote('Arena: ' + (Arena.stats().arena || ''));
