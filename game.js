@@ -115,6 +115,16 @@ const Game = (() => {
   const activated = new Set();            // "r,c" de blocos "!" já usados
   let items = [];                         // estrelas soltas: { x, y, vy, t }
   let particles = [];                     // gemas voando ao quebrar caixa: { x, y, vx, vy, t, s }
+  // superfície da rampa na coluna do centro do jogador; null se não há rampa por perto
+  function slopeAt(x, yFrom, yTo) {
+    const c = Math.floor(x / TILE), fx = (x - c * TILE) / TILE;
+    const r0 = Math.max(0, Math.floor((yFrom - 1) / TILE) - 1), r1 = Math.min(level.rows - 1, Math.floor(yTo / TILE) + 1);
+    for (let r = r0; r <= r1; r++) {
+      const cell = cellAt(r, c);
+      if (cell && cell.k === 'slope') return r * TILE + cell.h0 + (cell.h1 - cell.h0) * fx;
+    }
+    return null;
+  }
   const cellAt = (r, c) => { const x = (level.cells[r] && level.cells[r][c]) || null; return x && broken.has(r + ',' + c) ? null : x; };
   const isCollected = (r, c) => collected.has(r + ',' + c);
   function groundTopAt(col) { // y do topo do primeiro sólido da coluna (para renascer)
@@ -201,10 +211,12 @@ const Game = (() => {
     const prevY = player.y;
 
     // --- horizontal ---
+    const wasOnGround = player.onGround;
     player.x += player.vx * dt;
     player.x = Math.max(HW, Math.min(level.width - HW, player.x));
     {
-      const r0 = Math.max(0, Math.floor((player.y - BH + 2) / TILE)), r1 = Math.min(level.rows - 1, Math.floor((player.y - 2) / TILE));
+      const onSlope = slopeAt(player.x, player.y - 4, player.y + 8) !== null;
+      const r0 = Math.max(0, Math.floor((player.y - BH + 2) / TILE)), r1 = Math.min(level.rows - 1, Math.floor((player.y - 2) / TILE) - (onSlope ? 1 : 0));
       const c0 = Math.floor((player.x - HW) / TILE), c1 = Math.floor((player.x + HW) / TILE);
       for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
         const cell = cellAt(r, c);
@@ -215,7 +227,10 @@ const Game = (() => {
     // --- vertical ---
     player.y += player.vy * dt;
     player.onGround = false;
-    if (player.vy >= 0) {
+    const sy = player.vy >= 0 ? slopeAt(player.x, prevY, player.y + (wasOnGround ? 28 : 0)) : null;
+    if (sy !== null && (player.y >= sy - 2 || (wasOnGround && sy - player.y <= 28))) {
+      player.y = sy; player.vy = 0; player.onGround = true; player.bouncing = false;
+    } else if (player.vy >= 0) {
       const c0 = Math.floor((player.x - HW + 4) / TILE), c1 = Math.floor((player.x + HW - 4) / TILE);
       const r0 = Math.max(0, Math.floor((prevY - 1) / TILE)), r1 = Math.min(level.rows - 1, Math.floor(player.y / TILE));
       for (let r = r0; r <= r1 && !player.onGround; r++) for (let c = c0; c <= c1; c++) {
@@ -344,7 +359,7 @@ const Game = (() => {
       else if (s === 'torch_on_a' && blink) s = 'torch_on_b';
       else if (s === 'flag_red_a' && blink) s = 'flag_red_b';
       else if (s === 'flag_green_a' && blink) s = 'flag_green_b';
-      draw(s, c * TILE - cx, r * TILE - cy);
+      draw(s, c * TILE - cx, r * TILE - cy, !!cell.flip);
     }
   }
   function drawItems() {

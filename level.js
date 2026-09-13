@@ -10,6 +10,8 @@
 //   coin / gem – colecionável (some ao pegar)
 //   spring – mola: impulso forte ao pisar
 //   deco   – só visual
+//   slope  – rampa: superfície inclinada; h0/h1 = altura da superfície (px a partir do topo do tile)
+//            na borda esquerda/direita; flip = sprite espelhado (rampa subindo para a direita)
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.Level = factory();
@@ -48,7 +50,7 @@
 
     const get = (r, c) => (cells[r] && cells[r][c]) || null;
     const set = (r, c, s, k) => { if (r < 0 || r >= ROWS || c < 0) return; (cells[r] || (cells[r] = []))[c] = { s, k }; };
-    const isTerrain = (r, c) => { const x = get(r, c); return !!(x && x.k === 'solid' && x.s.startsWith('terrain_') && !x.s.includes('horizontal') && !x.s.includes('cloud')); };
+    const isTerrain = (r, c) => { const x = get(r, c); return !!(x && (x.k === 'solid' || x.k === 'slope') && x.s.startsWith('terrain_') && !x.s.includes('horizontal') && !x.s.includes('cloud')); };
 
     // chão sólido nas colunas [c0, c1] com topo na linha gt
     function ground(c0, c1, gt) {
@@ -134,10 +136,73 @@
       if (liquid === 'water' && difficulty > 0.45 && chance(0.5)) entities.push({ type: pick(['fish_blue', 'fish_yellow']), kind: 'fish', x: (x + w / 2) * TILE, y: (GROUND + 1) * TILE, speed: 1 + rnd(), phase: rnd() * 10 });
       x += w;
     }
+    // ---------- rampas ----------
+    // Tiles do pack descem para a direita: short_b (64 px em 1 tile), long_a + long_b (64 px em 2 tiles);
+    // short_a / long_c são o bloco plano decorado que antecede a rampa. Subida = mesmos sprites espelhados.
+    function slope(r, c, s, h0, h1, flip) { set(r, c, s, 'slope'); Object.assign(cells[r][c], { h0, h1, flip }); }
+    function keepTop(r, c, s) { set(r, c, s, 'solid'); cells[r][c].keep = true; }
+    // desce 1 linha a partir da coluna x (gt é o topo atual). Retorna as colunas usadas.
+    function rampDown(long) {
+      const c = x;
+      if (long) {
+        if (get(gt, c - 1)) keepTop(gt, c - 1, T('ramp_long_c'));
+        slope(gt, c, T('ramp_long_a'), 0, 32, false); ground(c, c, gt + 1);
+        slope(gt, c + 1, T('ramp_long_b'), 32, 64, false); ground(c + 1, c + 1, gt + 1);
+        x += 2;
+      } else {
+        if (get(gt, c - 1)) keepTop(gt, c - 1, T('ramp_short_a'));
+        slope(gt, c, T('ramp_short_b'), 0, 64, false); ground(c, c, gt + 1);
+        x += 1;
+      }
+      gt += 1;
+    }
+    // sobe 1 linha a partir da coluna x
+    function rampUp(long) {
+      const c = x;
+      if (long) {
+        slope(gt - 1, c, T('ramp_long_b'), 64, 32, true); ground(c, c, gt);
+        slope(gt - 1, c + 1, T('ramp_long_a'), 32, 0, true); ground(c + 1, c + 1, gt);
+        keepTop(gt - 1, c + 2, T('ramp_long_c')); ground(c + 2, c + 2, gt);
+        x += 3;
+      } else {
+        slope(gt - 1, c, T('ramp_short_b'), 64, 0, true); ground(c, c, gt);
+        keepTop(gt - 1, c + 1, T('ramp_short_a')); ground(c + 1, c + 1, gt);
+        x += 2;
+      }
+      gt -= 1;
+    }
+    // colina: sobe n, platô com moedas, desce n
+    function chunkHill() {
+      const n = Math.min(ri(1, 2), gt - 3);
+      if (n < 1) return chunkFlat();
+      const long = chance(0.5);
+      const start = x;
+      for (let i = 0; i < n; i++) rampUp(long);
+      const w = ri(2, 4);
+      ground(x, x + w - 1, gt);
+      checkpoints.push(x * TILE + 32);
+      coinArc(x, x + w - 1, gt - 2);
+      if (chance(0.3)) sprinkleDeco(x, x + w - 1, gt, 0.3);
+      x += w;
+      for (let i = 0; i < n; i++) rampDown(long);
+      ground(x, x + 1, gt); x += 2; // patamar de chegada
+      checkpoints.push((x - 1) * TILE + 32);
+      cells.hillCols = (cells.hillCols || 0) + (x - start);
+    }
     function chunkStep(dir) {
       const dh = dir > 0 && difficulty > 0.5 && chance(0.35) ? 2 : (dir < 0 && chance(0.5) ? 2 : 1); // subir 2 só no fim; descer 2 é fácil
       const ngt = Math.max(3, Math.min(GROUND, gt - dir * dh));
       if (ngt === gt) return chunkFlat();
+      if (chance(0.5)) { // como rampa em vez de degrau
+        const long = chance(0.5);
+        for (let i = 0; i < Math.abs(ngt - gt); i++) { if (dir > 0) rampUp(long); else rampDown(long); }
+        const w = ri(2, 4);
+        ground(x, x + w - 1, gt);
+        checkpoints.push(x * TILE + 32);
+        sprinkleDeco(x, x + w - 1, gt, 0.25);
+        x += w;
+        return;
+      }
       gt = ngt;
       const w = ri(3, 5);
       ground(x, x + w - 1, gt);
@@ -249,7 +314,7 @@
     while (x < targetCols) {
       difficulty = Math.min(1, x / targetCols);
       const options = [
-        ['flat', 3], ['gap', 2], ['stepUp', 1.5], ['stepDown', 1.5], ['platforms', 2], ['spikes', 1.5],
+        ['flat', 3], ['gap', 2], ['stepUp', 1.5], ['stepDown', 1.5], ['hill', 2.5], ['platforms', 2], ['spikes', 1.5],
         ['wall', 1.5], ['blocks', 1.5], ['spring', 1], ['bridge', 1.5], ['saw', difficulty > 0.3 ? 1 : 0],
         ['flyerGap', difficulty > 0.4 ? 1 : 0], ['spikeSlime', difficulty > 0.5 ? 1 : 0],
       ].filter(([k, w]) => w > 0 && k !== lastKind);
@@ -260,18 +325,18 @@
       let pickAt = rnd() * total, kind = pool[0][0];
       for (const [k, w] of pool) { pickAt -= w; if (pickAt <= 0) { kind = k; break; } }
       lastKind = kind;
-      ({ flat: chunkFlat, gap: chunkGap, stepUp: () => chunkStep(1), stepDown: () => chunkStep(-1), platforms: chunkPlatforms,
+      ({ flat: chunkFlat, gap: chunkGap, stepUp: () => chunkStep(1), stepDown: () => chunkStep(-1), hill: chunkHill, platforms: chunkPlatforms,
         spikes: chunkSpikes, wall: chunkWall, blocks: chunkBlocks, spring: chunkSpring, bridge: chunkBridge, saw: chunkSaw,
         flyerGap: chunkFlyerGap, spikeSlime: chunkSpikeSlime })[kind]();
     }
     // descida suave até o nível padrão antes da chegada
-    while (gt < GROUND) { gt++; ground(x, x + 2, gt); x += 3; }
+    while (gt < GROUND) { rampDown(false); ground(x, x + 1, gt); x += 2; }
     const finishX = chunkFinish();
     const cols = x;
 
     // ---------- autotile do terreno ----------
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < cols; c++) {
-      if (!isTerrain(r, c)) continue;
+      if (!isTerrain(r, c) || cells[r][c].keep || cells[r][c].k === 'slope') continue;
       const up = isTerrain(r - 1, c), left = isTerrain(r, c - 1), right = isTerrain(r, c + 1);
       let name;
       if (!up) name = !left && !right ? 'block' : !left ? 'block_top_left' : !right ? 'block_top_right' : 'block_top';
