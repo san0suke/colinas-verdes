@@ -24,7 +24,7 @@ const Game = (() => {
   // ---------- atlas / áudio ----------
   const SHEETS = ['tiles', 'enemies', 'characters', 'backgrounds'];
   const atlas = new Map();                // nome → { img, x, y, w, h }
-  const SOUNDS = { jump: 'sfx_jump', coin: 'sfx_coin', gem: 'sfx_gem', hurt: 'sfx_hurt', bump: 'sfx_bump', spring: 'sfx_jump-high', finish: 'sfx_magic', pop: 'sfx_disappear', tick: 'sfx_select' };
+  const SOUNDS = { jump: 'sfx_jump', coin: 'sfx_coin', gem: 'sfx_gem', hurt: 'sfx_hurt', bump: 'sfx_bump', spring: 'sfx_jump-high', finish: 'sfx_magic', pop: 'sfx_disappear', tick: 'sfx_select', crate: 'crate.wav' };
   const sounds = {};
   let muted = false;
   function play(name) {
@@ -245,7 +245,7 @@ const Game = (() => {
           if (player.y >= top - snap) {
             player.y = top; player.vy = 0; player.onGround = true; player.bouncing = false;
             if (cell.crate) { // caixa marrom quebra e solta 3 gemas, que caem na fase
-              broken.add(r + ',' + c); play('pop'); player.onGround = false; player.vy = -420;
+              broken.add(r + ',' + c); play('crate'); player.onGround = false; player.vy = -420;
               for (let i = 0; i < CRATE_GEMS; i++) items.push({ kind: 'gem', s: 'gem_green', x: c * TILE + 32, y: top + TILE, vx: (i - 1) * 150, vy: -560, t: 0 });
             } else if (cell.star && !activated.has(r + ',' + c)) { // bloco "!" solta uma estrela
               activated.add(r + ',' + c); play('pop');
@@ -462,7 +462,7 @@ const Game = (() => {
     if (loaded) return loaded;
     loaded = (async () => {
       await Promise.all(SHEETS.map(loadSheet));
-      for (const [k, file] of Object.entries(SOUNDS)) { try { const a = new Audio(`assets/sounds/${file}.ogg`); a.preload = 'auto'; sounds[k] = a; } catch {} }
+      for (const [k, file] of Object.entries(SOUNDS)) { try { const a = new Audio(`assets/sounds/${file.includes('.') ? file : file + '.ogg'}`); a.preload = 'auto'; sounds[k] = a; } catch {} }
     })();
     return loaded;
   }
