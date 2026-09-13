@@ -101,6 +101,10 @@
       li.querySelector('.by').textContent = r.createdBy || 'alguém';
       li.querySelector('.count').textContent = r.count === 1 ? '1 jogador' : `${r.count} jogadores`;
       const side = li.querySelector('.room-side');
+      const modeBadge = document.createElement('span');
+      modeBadge.className = 'badge mode-badge';
+      modeBadge.textContent = MODE_NAMES[r.mode] || 'Corrida louca';
+      side.appendChild(modeBadge);
       if (r.visibility === 'private') {
         const badge = document.createElement('span');
         badge.className = 'badge';
@@ -308,11 +312,22 @@
     els.passRow.hidden = !priv;
     if (!priv) els.roomPass.value = '';
   });
+  // criar sala: primeiro escolhe o modo de jogo num modal
+  const MODE_NAMES = { race: 'Corrida louca' };
+  const modeModal = $('mode-modal');
   els.createForm.addEventListener('submit', (e) => {
     e.preventDefault();
     if (!online) return;
+    modeModal.hidden = false;
+    const first = modeModal.querySelector('.mode'); if (first) first.focus();
+  });
+  $('mode-cancel').addEventListener('click', () => { modeModal.hidden = true; });
+  modeModal.addEventListener('click', (e) => { if (e.target === modeModal) modeModal.hidden = true; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modeModal.hidden) modeModal.hidden = true; });
+  for (const b of modeModal.querySelectorAll('.mode')) b.addEventListener('click', () => {
+    modeModal.hidden = true;
     setMsg(els.createMsg, 'Criando…');
-    sendMsg('create', { name: els.roomName.value.trim(), visibility: els.createForm.visibility.value, password: els.roomPass.value });
+    sendMsg('create', { name: els.roomName.value.trim(), visibility: els.createForm.visibility.value, password: els.roomPass.value, mode: b.dataset.mode });
   });
   els.joinForm.addEventListener('submit', (e) => {
     e.preventDefault();

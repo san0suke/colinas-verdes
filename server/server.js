@@ -34,7 +34,7 @@ const send = (c, type, data) => { if (c.ws.readyState === 1) c.ws.send(JSON.stri
 function publicRooms() {
   return [...rooms.values()]
     .sort((a, b) => b.createdAt - a.createdAt)
-    .map((r) => ({ code: r.code, name: r.name, visibility: r.visibility, hasPassword: !!r.passHash, count: r.players.size, createdBy: r.createdBy, createdAt: r.createdAt }));
+    .map((r) => ({ code: r.code, name: r.name, visibility: r.visibility, mode: r.mode || 'race', hasPassword: !!r.passHash, count: r.players.size, createdBy: r.createdBy, createdAt: r.createdAt }));
 }
 function broadcastRooms() {
   const list = publicRooms();
@@ -118,9 +118,10 @@ const handlers = {
   create(c, m) {
     const name = cleanText(m.name, 32) || randomRoomName();
     const visibility = m.visibility === 'private' ? 'private' : 'public';
+    const mode = ['race'].includes(m.mode) ? m.mode : 'race'; // modos de jogo (por enquanto só a corrida)
     const pass = visibility === 'private' ? String(m.password || '').slice(0, 32) : '';
     let code; do code = makeCode(); while (rooms.has(code));
-    const room = { code, name, visibility, passHash: pass ? hashPass(code, pass) : null, createdBy: c.nick, createdAt: Date.now(), players: new Map(), race: null, nextTimer: null };
+    const room = { code, name, visibility, mode, passHash: pass ? hashPass(code, pass) : null, createdBy: c.nick, createdAt: Date.now(), players: new Map(), race: null, nextTimer: null };
     rooms.set(code, room);
     joinRoom(c, room);
   },

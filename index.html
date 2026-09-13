@@ -93,6 +93,7 @@
   .room-name { font-weight: 700; display: block; }
   .room-meta { font-size: 13px; color: var(--muted); }
   .room-side { display: flex; align-items: center; gap: 8px; flex: none; }
+  .badge.mode-badge { color: var(--grass-dark); border-color: var(--grass); }
   .badge { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
   .room-pass { display: flex; gap: 8px; align-items: center; }
   .room-pass input { width: 150px; padding: 7px 10px; }
@@ -131,6 +132,18 @@
   .avatar[data-color="beige"] { background: #e8c9a0; } .avatar[data-color="pink"] { background: #f08bc0; }
   .avatar[data-color="purple"] { background: #a06be0; } .avatar[data-color="yellow"] { background: #f3cf3a; }
   .results-next { text-align: center; color: var(--muted); margin: 14px 0 0; font-weight: 700; }
+
+  /* ---------- Escolha do modo ---------- */
+  .mode-card { width: min(720px, 100%); }
+  .mode-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .mode { display: grid; gap: 6px; padding: 0 0 12px; text-align: left; font: inherit; color: var(--ink); background: var(--panel-2);
+          border: 2px solid var(--line); border-radius: 14px; overflow: hidden; cursor: pointer; }
+  .mode img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+  .mode:hover, .mode:focus-visible { border-color: var(--grass); transform: translateY(-2px); box-shadow: 0 10px 24px rgba(10,30,50,.2); }
+  .mode-name { font-family: Fredoka, Nunito, sans-serif; font-weight: 700; font-size: 22px; padding: 4px 14px 0; }
+  .mode-desc { font-size: 14px; color: var(--muted); padding: 0 14px; }
+  .mode-more { text-align: center; color: var(--muted); font-size: 13px; margin: 14px 0 0; }
+  .mode-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
   canvas#game { width: min(960px, 96vw); aspect-ratio: 5 / 3; display: block; border-radius: 6px; box-shadow: 0 14px 40px rgba(10,30,50,.35); outline: none; }
   canvas#game:focus-visible { box-shadow: 0 0 0 3px var(--grass), 0 14px 40px rgba(10,30,50,.35); }
   .hint { color: var(--muted); font-size: 14px; display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
@@ -288,6 +301,20 @@
     <div id="rotate-note">Gire o celular para jogar na horizontal</div>
     <div id="touch-hud">⏱ <span id="touch-time">0.0 s</span> &nbsp; 🪙 <span id="touch-coins">0</span> &nbsp; ⚡ <span id="touch-speed">+0%</span> &nbsp; <span id="touch-deadline" class="hud-deadline"></span></div>
   </div>
+  <div id="mode-modal" class="results" hidden>
+    <div class="results-card mode-card">
+      <h2>Qual modo você quer jogar?</h2>
+      <div id="mode-list" class="mode-list">
+        <button type="button" class="mode" data-mode="race">
+          <img src="assets/modes/corrida-louca.png" alt="">
+          <span class="mode-name">Corrida louca</span>
+          <span class="mode-desc">Fase gerada na hora. Quem chega primeiro na bandeira vence.</span>
+        </button>
+      </div>
+      <p class="mode-more">Mais modos em breve.</p>
+      <div class="mode-actions"><button type="button" id="mode-cancel" class="btn ghost small">Cancelar</button></div>
+    </div>
+  </div>
   <div id="results" class="results" hidden>
     <div class="results-card">
       <h2>Placar</h2>
@@ -297,11 +324,11 @@
   </div>
 </section>
 
-<script src="config.js?v=60400c1"></script>
-<script src="level.js?v=60400c1"></script>
-<script src="game.js?v=60400c1"></script>
-<script src="music.js?v=60400c1"></script>
-<script src="lobby.js?v=60400c1"></script>
-<script src="touch.js?v=60400c1"></script>
+<script src="config.js?v=d633265"></script>
+<script src="level.js?v=d633265"></script>
+<script src="game.js?v=d633265"></script>
+<script src="music.js?v=d633265"></script>
+<script src="lobby.js?v=d633265"></script>
+<script src="touch.js?v=d633265"></script>
 </body>
 </html>
