@@ -102,7 +102,7 @@ const handlers = {
 
 // ---------- http + ws ----------
 const server = http.createServer((req, res) => {
-  if (req.url === '/health') { res.writeHead(200); return res.end('ok'); }
+  if (req.url === '/health') { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('ok ' + (process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7)); }
   let p = decodeURIComponent(req.url.split('?')[0]);
   if (p === '/') p = '/index.html';
   const file = path.normalize(path.join(STATIC_DIR, p));
