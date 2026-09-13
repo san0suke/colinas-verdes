@@ -31,8 +31,8 @@ const Game = (() => {
 
   // Os fundos do pack são opacos: a cor do pixel superior-esquerdo (céu/branco)
   // vira transparente para que as camadas possam ser empilhadas.
-  // `alsoDrop(r, g, b)`: regra extra de transparência para a camada.
-  function keyOutTopColor(img, alsoDrop) {
+  // `pixel(r, g, b)` opcional decide o resto: false = transparente, [r, g, b] = recolore, outro = mantém.
+  function keyOutTopColor(img, pixel) {
     const c = document.createElement('canvas');
     c.width = img.width; c.height = img.height;
     const g = c.getContext('2d');
@@ -42,7 +42,11 @@ const Game = (() => {
     const r0 = p[0], g0 = p[1], b0 = p[2];
     for (let i = 0; i < p.length; i += 4) {
       const r = p[i], gg = p[i + 1], b = p[i + 2];
-      if ((r === r0 && gg === g0 && b === b0) || (alsoDrop && alsoDrop(r, gg, b))) p[i + 3] = 0;
+      if (r === r0 && gg === g0 && b === b0) { p[i + 3] = 0; continue; }
+      if (!pixel) continue;
+      const out = pixel(r, gg, b);
+      if (out === false) p[i + 3] = 0;
+      else if (Array.isArray(out)) { p[i] = out[0]; p[i + 1] = out[1]; p[i + 2] = out[2]; }
     }
     g.putImageData(data, 0, 0);
     return { canvas: c, keyColor: `rgb(${r0},${g0},${b0})` };
@@ -76,13 +80,19 @@ const Game = (() => {
   const COYOTE_TIME = 0.08;  // s
   const JUMP_BUFFER = 0.10;  // s
 
+  // As imagens do pack misturam camadas: fade_hills tem morros claros (221,239,255) e uma faixa
+  // mais escura (195,227,255) na frente; color_hills tem morros azuis atrás dos verdes. Cada uma
+  // vira uma camada própria (src = imagem de origem, pixel = filtro) com velocidade e altura próprias;
+  // quanto mais perto, mais rápido e mais baixo. offsetY > 0 desce a camada (o chão cobre a sobra).
+  const LIGHT_BLUE = [221, 239, 255];
   const PARALLAX = [
-    // offsetY: as nuvens sobem para ficar visíveis acima dos morros (senão os morros as cobrem)
-    { key: 'clouds',    factor: 0.12, scale: 2, offsetY: -120 },
-    { key: 'hillsFar',  factor: 0.35, scale: 2, offsetY: 0 },
-    // hillsNear (color_hills) traz morros azuis-claros desenhados atrás dos verdes na mesma imagem;
-    // eles são removidos (azul dominante) para não andarem grudados aos verdes — o fundo azul fica com hillsFar.
-    { key: 'hillsNear', factor: 0.6,  scale: 2, offsetY: 0, drop: (r, g, b) => b > g },
+    { key: 'clouds',    src: 'clouds',    factor: 0.10, scale: 2, offsetY: -120 },
+    // morros claros: tudo que não é branco vira azul-claro (preenche o que a faixa escura cobria)
+    { key: 'hillsFar',  src: 'hillsFar',  factor: 0.25, scale: 2, offsetY: -30, pixel: () => LIGHT_BLUE },
+    // faixa azul mais escura: só ela, o resto some
+    { key: 'hillsMid',  src: 'hillsFar',  factor: 0.40, scale: 2, offsetY: 10,  pixel: (r, g) => g < 232 ? true : false },
+    // morros verdes: descarta os azuis desenhados atrás (azul dominante)
+    { key: 'hillsNear', src: 'hillsNear', factor: 0.60, scale: 2, offsetY: 55,  pixel: (r, g, b) => b > g ? false : true },
   ];
 
   // ---------- Estado ----------
@@ -256,7 +266,7 @@ const Game = (() => {
         chars[color] = Object.fromEntries(set);
       }
       for (const layer of PARALLAX) {
-        const keyed = keyOutTopColor(img[layer.key], layer.drop);
+        const keyed = keyOutTopColor(img[layer.src], layer.pixel);
         bg[layer.key] = makeLayer(ctx, keyed, layer.scale);
         if (layer.key === 'clouds') skyColor = keyed.keyColor;
       }
