@@ -11,6 +11,7 @@ const Game = (() => {
   const GRAVITY = 2200, MAX_FALL = 1400;
   const MOVE_SPEED = 340, COIN_BOOST = 0.02, MAX_BOOST = 0.8, JUMP_SPEED = 820, JUMP_CUT = 0.45, COYOTE_TIME = 0.08, JUMP_BUFFER = 0.10;
   const GEM_VALUE = { gem_green: 5, gem_blue: 8, gem_red: 10, gem_yellow: 10 }; // gemas valem várias moedas
+  const CRATE_GEMS = 3, STAR_DASHES = 3;    // caixa marrom: 3 gemas; estrela: +3 dashes (pode passar do máximo)
   const HW = 24, BH = 96;                 // meia-largura e altura da caixa do jogador (pés em y)
   const BOUNCE_SPEED = 1500;              // quique em cima de outro jogador
   const ENEMY_BOUNCE = 780, SPRING_SPEED = 1350;
@@ -110,7 +111,11 @@ const Game = (() => {
   const rightHeld = () => virt.right || keys.has('ArrowRight') || keys.has('KeyD');
 
   // ---------- grade ----------
-  const cellAt = (r, c) => (level.cells[r] && level.cells[r][c]) || null;
+  const broken = new Set();               // "r,c" de caixas quebradas (somem)
+  const activated = new Set();            // "r,c" de blocos "!" já usados
+  let items = [];                         // estrelas soltas: { x, y, vy, t }
+  let particles = [];                     // gemas voando ao quebrar caixa: { x, y, vx, vy, t, s }
+  const cellAt = (r, c) => { const x = (level.cells[r] && level.cells[r][c]) || null; return x && broken.has(r + ',' + c) ? null : x; };
   const isCollected = (r, c) => collected.has(r + ',' + c);
   function groundTopAt(col) { // y do topo do primeiro sólido da coluna (para renascer)
     for (let r = 0; r < level.rows; r++) { const x = cellAt(r, col); if (x && (x.k === 'solid' || x.k === 'oneway')) return r * TILE; }
@@ -219,6 +224,13 @@ const Game = (() => {
         if (cell.k === 'solid' || ((cell.k === 'oneway' || cell.k === 'spring') && prevY <= top + 6)) {
           if (player.y >= top) {
             player.y = top; player.vy = 0; player.onGround = true; player.bouncing = false;
+            if (cell.crate) { // caixa marrom quebra e solta 3 gemas
+              broken.add(r + ',' + c); player.coins += CRATE_GEMS * GEM_VALUE.gem_green; play('gem'); player.onGround = false; player.vy = -420;
+              for (let i = 0; i < CRATE_GEMS; i++) particles.push({ x: c * TILE + 32, y: top, vx: (i - 1) * 140, vy: -520, t: 0.7, s: 'gem_green' });
+            } else if (cell.star && !activated.has(r + ',' + c)) { // bloco "!" solta uma estrela
+              activated.add(r + ',' + c); play('pop');
+              items.push({ x: c * TILE + 32, y: top, vy: -380, t: 0 });
+            }
             if (cell.k === 'spring') { player.vy = -SPRING_SPEED; player.onGround = false; player.bouncing = true; springs.set(r + ',' + c, now); play('spring'); }
             break;
           }
@@ -257,6 +269,17 @@ const Game = (() => {
         dead.add(i); player.vy = -ENEMY_BOUNCE; player.y = ey0; player.bouncing = true; play('pop');
       } else hurt('enemy ' + e.type);
     });
+    // --- estrelas soltas e partículas ---
+    for (const it of items) {
+      it.t += dt; it.vy += GRAVITY * 0.6 * dt; it.y += it.vy * dt;
+      const r = Math.floor((it.y - 1) / TILE), c = Math.floor(it.x / TILE), under = cellAt(r, c);
+      if (it.vy > 0 && under && (under.k === 'solid' || under.k === 'oneway')) { it.y = r * TILE; it.vy = 0; }
+      if (Math.abs(it.x - player.x) < HW + 24 && it.y > player.y - BH - 8 && it.y - 56 < player.y) { it.taken = true; player.dashes += STAR_DASHES; play('finish'); }
+    }
+    items = items.filter((it) => !it.taken && it.y < level.height + 200);
+    for (const p of particles) { p.t -= dt; p.vy += GRAVITY * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+    particles = particles.filter((p) => p.t > 0);
+
     // --- quique em cima de outro jogador ---
     if (player.vy > 0) {
       for (const r of remote.values()) {
@@ -308,6 +331,7 @@ const Game = (() => {
       if (!cell) continue;
       let s = cell.s;
       if (cell.k === 'coin') { if (isCollected(r, c)) continue; if (blink && s.startsWith('coin')) s += '_side'; }
+      else if (cell.star && activated.has(r + ',' + c)) s = 'block_exclamation_active';
       else if (cell.k === 'spring') { const at = springs.get(r + ',' + c); if (at !== undefined && now - at < 0.25) s = 'spring_out'; }
       else if (cell.k === 'hazard' && (s.startsWith('water') || s.startsWith('lava'))) {
         // água/lava sobe e desce alguns pixels; a cópia abaixo cobre a fresta que a subida abriria no fundo
@@ -321,6 +345,10 @@ const Game = (() => {
       else if (s === 'flag_green_a' && blink) s = 'flag_green_b';
       draw(s, c * TILE - cx, r * TILE - cy);
     }
+  }
+  function drawItems() {
+    for (const it of items) draw('star', Math.round(it.x - 32 - camera.x), Math.round(it.y - 64 - camera.y + Math.sin(it.t * 6) * 3));
+    for (const p of particles) { ctx.save(); ctx.globalAlpha = Math.min(1, p.t * 2); draw(p.s, Math.round(p.x - 32 - camera.x), Math.round(p.y - 64 - camera.y)); ctx.restore(); }
   }
   function drawEnemies() {
     const t = Math.max(0, now);
@@ -364,7 +392,7 @@ const Game = (() => {
   }
   let lastTick = 99;
   function render() {
-    drawBackground(); drawLevel(); drawEnemies();
+    drawBackground(); drawLevel(); drawItems(); drawEnemies();
     const t = performance.now() / 1000;
     for (const r of remote.values()) drawCharacter(r.x, r.y, r.f, charSprite(r.color, r.a, t), r.nick, 0.92);
     const anim = player.hitUntil > 0 ? 'h' : (!player.onGround || player.dashTime > 0) ? 'j' : player.vx !== 0 ? 'w' : 'i';
@@ -405,7 +433,7 @@ const Game = (() => {
   // Começa (ou recomeça) uma corrida. { seed, startAt (relógio do servidor), serverNow, color, nick, onState, onFinish }
   function startRace(opts) {
     level = Level.generate(opts.seed);
-    collected.clear(); dead.clear(); springs = new Map();
+    collected.clear(); dead.clear(); broken.clear(); activated.clear(); items = []; particles = []; springs = new Map();
     remote.clear();
     clockOffset = opts.serverNow - Date.now();
     startAt = opts.startAt;

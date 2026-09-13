@@ -122,6 +122,7 @@
       ground(x, x + w - 1, gt);
       checkpoints.push(x * TILE + 32);
       if (w >= 5 && chance(0.25 + difficulty * 0.5)) walker(x + 1, x + w - 2, gt);
+      else if (chance(0.3)) { const c = x + ri(1, w - 2); set(gt - 1, c, 'block_planks', 'solid'); cells[gt - 1][c].crate = true; }
       else sprinkleDeco(x, x + w - 1, gt, 0.35);
       if (chance(0.5)) coinArc(x + 1, x + w - 2, gt - 2);
       x += w;
@@ -177,6 +178,7 @@
       const c = x + ri(2, w - 3);
       const block = pick(['block_blue', 'block_green', 'block_red', 'block_yellow', 'brick_brown', 'brick_grey', 'block_planks']);
       set(gt - 1, c, block, 'solid');
+      if (block === 'block_planks') cells[gt - 1][c].crate = true; // caixa marrom: quebra ao pular em cima (3 gemas)
       if (chance(0.5)) set(gt - 2, c, 'coin_gold', 'coin');
       if (chance(0.4)) { chance(0.5); set(gt - 1, c + 1, 'gem_green', 'coin'); } // (sem a estrela por enquanto; o sorteio extra mantém as fases iguais)
       x += w;
@@ -188,7 +190,10 @@
       const n = ri(2, Math.min(4, w - 2));
       const c0 = x + ri(1, w - n - 1);
       for (let c = c0; c < c0 + n; c++) {
-        set(gt - 2, c, pick(['block_coin', 'block_exclamation', 'brick_brown', 'bricks_grey', 'block_empty']), 'solid');
+        const b = pick(['block_coin', 'block_exclamation', 'brick_brown', 'bricks_grey', 'block_empty', 'block_planks']);
+        set(gt - 2, c, b, 'solid');
+        if (b === 'block_planks') cells[gt - 2][c].crate = true;
+        if (b === 'block_exclamation' && chance(0.5)) cells[gt - 2][c].star = true; // de vez em quando o "!" solta uma estrela
         if (chance(0.7)) set(gt - 3, c, chance(0.2) ? pick(['gem_green', 'gem_blue', 'gem_red']) : 'coin_gold', 'coin');
       }
       if (chance(0.4)) walker(x + 1, x + w - 2, gt);
