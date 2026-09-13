@@ -9,13 +9,12 @@ const { WebSocketServer } = require('ws');
 
 const PORT = process.env.PORT || 8000;
 const STATIC_DIR = path.join(__dirname, '..');
-const EMPTY_ROOM_TTL_MS = 60_000;     // sala vazia some após 1 min (dá tempo de recarregar a página)
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const COLORS = ['green', 'beige', 'pink', 'purple', 'yellow'];
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.txt': 'text/plain' };
 
 // ---------- estado ----------
-const rooms = new Map();   // code -> { code, name, visibility, passHash, createdBy, createdAt, players: Map<id, client>, emptySince }
+const rooms = new Map();   // code -> { code, name, visibility, passHash, createdBy, createdAt, players: Map<id, client> }
 const clients = new Map(); // id -> { id, ws, nick, color, room, x, y, f, a }
 
 const makeCode = () => Array.from(crypto.randomBytes(6), (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
@@ -43,7 +42,7 @@ function leaveRoom(c, notify = true) {
   room.players.delete(c.id);
   c.room = null;
   broadcastRoom(room, 'player_leave', { id: c.id });
-  if (room.players.size === 0) room.emptySince = Date.now();
+  if (room.players.size === 0) rooms.delete(room.code); // a sala morre com o último jogador
   if (notify) send(c, 'rooms', { rooms: publicRooms() });
   broadcastRooms();
 }
@@ -51,7 +50,6 @@ function leaveRoom(c, notify = true) {
 function joinRoom(c, room) {
   leaveRoom(c, false);
   c.room = room;
-  room.emptySince = null;
   // nasce ao lado de alguém que já esteja na sala
   const others = [...room.players.values()];
   if (others.length) {
@@ -80,7 +78,7 @@ const handlers = {
     const visibility = m.visibility === 'private' ? 'private' : 'public';
     const pass = visibility === 'private' ? String(m.password || '').slice(0, 32) : '';
     let code; do code = makeCode(); while (rooms.has(code));
-    const room = { code, name, visibility, passHash: pass ? hashPass(code, pass) : null, createdBy: c.nick, createdAt: Date.now(), players: new Map(), emptySince: null };
+    const room = { code, name, visibility, passHash: pass ? hashPass(code, pass) : null, createdBy: c.nick, createdAt: Date.now(), players: new Map() };
     rooms.set(code, room);
     joinRoom(c, room);
   },
@@ -131,18 +129,12 @@ wss.on('connection', (ws) => {
   ws.on('error', () => {});
 });
 
-// keepalive (Render fecha conexões ociosas) + limpeza de salas vazias
+// keepalive (Render fecha conexões ociosas)
 setInterval(() => {
   for (const c of clients.values()) {
     if (!c.alive) { c.ws.terminate(); continue; }
     c.alive = false; c.ws.ping();
   }
-  const now = Date.now();
-  let changed = false;
-  for (const r of rooms.values()) {
-    if (r.players.size === 0 && r.emptySince && now - r.emptySince > EMPTY_ROOM_TTL_MS) { rooms.delete(r.code); changed = true; }
-  }
-  if (changed) broadcastRooms();
 }, 15_000);
 
 server.listen(PORT, () => console.log(`Colinas Verdes: http://localhost:${PORT}`));

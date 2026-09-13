@@ -14,7 +14,7 @@ npm start        # http://localhost:8000 (página + servidor de salas)
 ## Estrutura
 
 - `index.html`, `game.js` (motor), `lobby.js` (salas/rede no cliente), `config.js` (endereço do servidor)
-- `server/server.js` — servidor Node: salas em memória, senha (SHA-256), relay de posições, arquivos estáticos
+- `server/server.js` — servidor Node: salas em memória (apagadas quando o último jogador sai), senha (SHA-256), relay de posições, arquivos estáticos
 - `assets/` — só os sprites usados
 - `build.py` — bundle de página única (usado para publicar como Artifact do claude.ai; opcional)
 
