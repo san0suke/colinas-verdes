@@ -288,6 +288,13 @@ const Game = (() => {
       let s = cell.s;
       if (cell.k === 'coin') { if (isCollected(r, c)) continue; if (blink && s.startsWith('coin')) s += '_side'; }
       else if (cell.k === 'spring') { const at = springs.get(r + ',' + c); if (at !== undefined && now - at < 0.25) s = 'spring_out'; }
+      else if (cell.k === 'hazard' && (s.startsWith('water') || s.startsWith('lava'))) {
+        // água/lava sobe e desce alguns pixels; a cópia abaixo cobre a fresta que a subida abriria no fundo
+        const dy = Math.round(Math.sin(now * 2.5) * 4);
+        draw(s, c * TILE - cx, r * TILE - cy + dy);
+        if (!s.includes('_top')) draw(s, c * TILE - cx, (r + 1) * TILE - cy + dy);
+        continue;
+      }
       else if (s === 'torch_on_a' && blink) s = 'torch_on_b';
       else if (s === 'flag_red_a' && blink) s = 'flag_red_b';
       else if (s === 'flag_green_a' && blink) s = 'flag_green_b';

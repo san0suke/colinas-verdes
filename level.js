@@ -77,7 +77,7 @@
       dirt: ['bush', 'rock', 'mushroom_brown', 'grass', 'fence', 'fence_broken', 'sign', 'weight'],
       sand: ['cactus', 'rock', 'sign', 'fence_broken', 'bush', 'grass'],
       snow: ['rock', 'snow', 'fence', 'sign', 'bush'],
-      stone: ['rock', 'torch_on_a', 'window', 'lever', 'chain', 'weight'],
+      stone: ['rock', 'torch_on_a', 'window', 'weight'],
       purple: ['grass_purple', 'mushroom_red', 'mushroom_brown', 'torch_on_a', 'rock'],
     };
     function sprinkleDeco(c0, c1, gt, density) {
@@ -178,7 +178,7 @@
       const block = pick(['block_blue', 'block_green', 'block_red', 'block_yellow', 'brick_brown', 'brick_grey', 'block_planks']);
       set(gt - 1, c, block, 'solid');
       if (chance(0.5)) set(gt - 2, c, 'coin_gold', 'coin');
-      if (chance(0.4)) deco(gt - 1, c + 1, pick(['bomb', 'key_yellow', 'star']));
+      if (chance(0.4)) deco(gt - 1, c + 1, pick(['key_yellow', 'star', 'gem_green']));
       x += w;
     }
     function chunkBlocks() { // fileira de blocos flutuantes com moedas em cima
