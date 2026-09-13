@@ -86,7 +86,8 @@ const Game = (() => {
   // quanto mais perto, mais rápido e mais baixo. offsetY > 0 desce a camada (o chão cobre a sobra).
   const LIGHT_BLUE = [221, 239, 255];
   const PARALLAX = [
-    { key: 'clouds',    src: 'clouds',    factor: 0.10, scale: 2, offsetY: -120 },
+    // nuvens: só as brancas — a imagem também traz nuvens azul-claras atrás, que pareciam uma 3ª camada de morros
+    { key: 'clouds',    src: 'clouds',    factor: 0.10, scale: 2, offsetY: -120, pixel: (r) => r > 240 ? true : false },
     // morros claros: tudo que não é branco vira azul-claro (preenche o que a faixa escura cobria)
     { key: 'hillsFar',  src: 'hillsFar',  factor: 0.25, scale: 2, offsetY: -30, pixel: () => LIGHT_BLUE },
     // faixa azul mais escura: só ela, o resto some
