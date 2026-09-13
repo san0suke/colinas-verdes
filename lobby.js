@@ -11,7 +11,7 @@
     createForm: $('create-form'), roomName: $('room-name'), passRow: $('pass-row'), roomPass: $('room-pass'),
     joinForm: $('join-form'), joinCode: $('join-code'), joinPass: $('join-pass'), joinMsg: $('join-msg'), createMsg: $('create-msg'),
     solo: $('solo'), hudRoom: $('hud-room'), hudCode: $('hud-code'), hudPlayers: $('hud-players'), leave: $('leave'),
-    hudTime: $('hud-time'), hudCoins: $('hud-coins'), hudSpeed: $('hud-speed'), touchSpeed: $('touch-speed'), hudFinished: $('hud-finished'), hudNote: $('hud-note'),
+    hudTime: $('hud-time'), hudCoins: $('hud-coins'), hudSpeed: $('hud-speed'), touchSpeed: $('touch-speed'), hudDash: $('hud-dash'), dashCharges: $('dash-charges'), dashBtn: $('dash'), hudFinished: $('hud-finished'), hudNote: $('hud-note'),
     touchTime: $('touch-time'), touchCoins: $('touch-coins'),
     results: $('results'), resultsList: $('results-list'), resultsNext: $('results-next'),
     canvas: $('game'), offlineNote: $('offline-note'), fsButton: $('fs-enter'),
@@ -233,6 +233,7 @@
   function hideResults() { els.results.hidden = true; clearInterval(resultsTimer); }
 
   // ---------- HUD ----------
+  let lastDashKey = '';
   setInterval(() => {
     if (currentScreen !== 'game' && currentScreen !== 'gate') return;
     const s = Game.stats();
@@ -240,6 +241,12 @@
     els.hudTime.textContent = t; els.touchTime.textContent = t;
     els.hudCoins.textContent = String(s.coins); els.touchCoins.textContent = String(s.coins);
     const sp = `+${Math.round(s.boost * 100)}%`; els.hudSpeed.textContent = sp; els.touchSpeed.textContent = sp;
+    if (lastDashKey !== s.dashes + '/' + s.dashMax) {
+      lastDashKey = s.dashes + '/' + s.dashMax;
+      const ticks = Array.from({ length: s.dashMax }, (_, i) => `<i class="${i < s.dashes ? '' : 'off'}"></i>`).join('');
+      els.hudDash.innerHTML = ticks; els.dashCharges.innerHTML = ticks;
+      els.dashBtn.disabled = s.dashes <= 0;
+    }
   }, 100);
 
   // ---------- mensagens do servidor ----------

@@ -16,6 +16,7 @@ const Game = (() => {
   const ENEMY_BOUNCE = 780, SPRING_SPEED = 1350;
   const STOMP_TOLERANCE = 14, CAMERA_TOP_MARGIN = 120;
   const HURT_INVULN = 1.6, HIT_ANIM = 0.45;
+  const DASH_CHARGES = 4, DASH_SPEED = 1200, DASH_TIME = 0.22; // dash: 4 usos por corrida, forte e curto, sem gravidade
   const HURT_COIN_LOSS = 15;              // moedas perdidas a cada dano
 
   // ---------- atlas / áudio ----------
@@ -91,16 +92,19 @@ const Game = (() => {
   const keys = new Set();
   let jumpPressedThisFrame = false;
   const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW'];
+  const DASH_KEYS = ['ShiftLeft', 'ShiftRight'];
+  let dashPressedThisFrame = false;
   function onKeyDown(e) {
     if (e.target && e.target.tagName === 'INPUT') return;
     if (JUMP_KEYS.includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
     if (JUMP_KEYS.includes(e.code) && !keys.has(e.code)) jumpPressedThisFrame = true;
+    if (DASH_KEYS.includes(e.code) && !keys.has(e.code)) { dashPressedThisFrame = true; e.preventDefault(); }
     keys.add(e.code);
   }
   function onKeyUp(e) { keys.delete(e.code); }
   function onBlur() { keys.clear(); }
-  const virt = { left: false, right: false, jump: false };
-  function setVirtualInput(patch) { if (patch.jump && !virt.jump) jumpPressedThisFrame = true; Object.assign(virt, patch); }
+  const virt = { left: false, right: false, jump: false, dash: false };
+  function setVirtualInput(patch) { if (patch.jump && !virt.jump) jumpPressedThisFrame = true; if (patch.dash && !virt.dash) dashPressedThisFrame = true; Object.assign(virt, patch); }
   const jumpHeld = () => virt.jump || JUMP_KEYS.some((k) => keys.has(k));
   const leftHeld = () => virt.left || keys.has('ArrowLeft') || keys.has('KeyA');
   const rightHeld = () => virt.right || keys.has('ArrowRight') || keys.has('KeyD');
@@ -167,7 +171,15 @@ const Game = (() => {
     const dir = active ? (rightHeld() ? 1 : 0) - (leftHeld() ? 1 : 0) : 0;
     player.vx = dir * MOVE_SPEED * (1 + boost());
     if (dir !== 0) player.facing = dir;
-    if (!active) { jumpPressedThisFrame = false; player.jumpBuffer = 0; }
+    if (!active) { jumpPressedThisFrame = false; dashPressedThisFrame = false; player.jumpBuffer = 0; }
+
+    // --- dash: impulso horizontal forte na direção em que olha, sem cair enquanto dura ---
+    if (dashPressedThisFrame && active && player.dashes > 0 && player.dashTime <= 0 && !player.finished) {
+      player.dashes--; player.dashTime = DASH_TIME; player.dashDir = player.facing; player.bouncing = false; play('spring');
+    }
+    dashPressedThisFrame = false;
+    const dashing = player.dashTime > 0;
+    if (dashing) { player.dashTime -= dt; player.vx = player.dashDir * DASH_SPEED; player.vy = 0; jumpPressedThisFrame = false; player.jumpBuffer = 0; }
 
     player.coyote = player.onGround ? COYOTE_TIME : Math.max(0, player.coyote - dt);
     if (jumpPressedThisFrame) player.jumpBuffer = JUMP_BUFFER; else player.jumpBuffer = Math.max(0, player.jumpBuffer - dt);
@@ -176,7 +188,7 @@ const Game = (() => {
     if (player.jumpBuffer > 0 && player.coyote > 0) { player.vy = -JUMP_SPEED; player.onGround = false; player.coyote = 0; player.jumpBuffer = 0; play('jump'); }
     if (!jumpHeld() && player.vy < 0 && !player.bouncing) player.vy *= Math.pow(JUMP_CUT, dt * 60);
 
-    player.vy = Math.min(MAX_FALL, player.vy + GRAVITY * dt);
+    if (!dashing) player.vy = Math.min(MAX_FALL, player.vy + GRAVITY * dt);
     player.invuln = Math.max(0, player.invuln - dt);
     player.hitUntil = Math.max(0, player.hitUntil - dt);
     player.lossUntil = Math.max(0, player.lossUntil - dt);
@@ -272,7 +284,7 @@ const Game = (() => {
     for (const r of remote.values()) { r.x += (r.tx - r.x) * Math.min(1, dt * 14); r.y += (r.ty - r.y) * Math.min(1, dt * 14); }
 
     if (hooks.onState) {
-      const a = player.hitUntil > 0 ? 'h' : !player.onGround ? 'j' : player.vx !== 0 ? 'w' : 'i';
+      const a = player.hitUntil > 0 ? 'h' : (!player.onGround || player.dashTime > 0) ? 'j' : player.vx !== 0 ? 'w' : 'i';
       const s = { x: Math.round(player.x), y: Math.round(player.y), f: player.facing, a };
       const key = `${s.x},${s.y},${s.f},${s.a}`;
       if (key !== lastSent) { lastSent = key; hooks.onState(s); }
@@ -355,7 +367,7 @@ const Game = (() => {
     drawBackground(); drawLevel(); drawEnemies();
     const t = performance.now() / 1000;
     for (const r of remote.values()) drawCharacter(r.x, r.y, r.f, charSprite(r.color, r.a, t), r.nick, 0.92);
-    const anim = player.hitUntil > 0 ? 'h' : !player.onGround ? 'j' : player.vx !== 0 ? 'w' : 'i';
+    const anim = player.hitUntil > 0 ? 'h' : (!player.onGround || player.dashTime > 0) ? 'j' : player.vx !== 0 ? 'w' : 'i';
     const blink = player.invuln > 0 && Math.floor(player.animTime * 12) % 2 === 0;
     drawCharacter(player.x, player.y, player.facing, charSprite(player.color, anim, player.animTime), player.nick, blink ? 0.35 : 1);
     if (player.lossUntil > 0 && player.lossText) {
@@ -398,7 +410,7 @@ const Game = (() => {
     clockOffset = opts.serverNow - Date.now();
     startAt = opts.startAt;
     hooks = { onState: opts.onState, onFinish: opts.onFinish };
-    Object.assign(player, { x: level.spawnX, y: level.spawnY, vx: 0, vy: 0, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, coins: 0, invuln: 0, hitUntil: 0, lossUntil: 0, lossText: '', finished: false, color: COLORS.includes(opts.color) ? opts.color : 'green', nick: opts.nick || '' });
+    Object.assign(player, { x: level.spawnX, y: level.spawnY, vx: 0, vy: 0, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, dashes: DASH_CHARGES, dashTime: 0, dashDir: 1, coins: 0, invuln: 0, hitUntil: 0, lossUntil: 0, lossText: '', finished: false, color: COLORS.includes(opts.color) ? opts.color : 'green', nick: opts.nick || '' });
     camera.x = 0; camera.y = 0; frozen = false; lastSent = ''; lastTick = 99;
     buildBackground(level.bg);
     if (!running) {
@@ -423,7 +435,7 @@ const Game = (() => {
     }
     for (const k of remote.keys()) if (!seen.has(k)) remote.delete(k);
   }
-  const stats = () => ({ time: now, coins: player.coins, boost: boost(), finished: player.finished, progress: level ? Math.min(1, Math.max(0, player.x / level.finishX)) : 0 });
+  const stats = () => ({ time: now, coins: player.coins, boost: boost(), dashes: player.dashes, dashMax: DASH_CHARGES, dashing: player.dashTime > 0, finished: player.finished, progress: level ? Math.min(1, Math.max(0, player.x / level.finishX)) : 0 });
   function setMuted(v) { muted = v; }
 
   // gancho para testes automatizados (node): roda a física sem canvas

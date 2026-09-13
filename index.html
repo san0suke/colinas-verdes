@@ -159,9 +159,18 @@
   #stick.active { opacity: .9; }
   #knob { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%;
           background: rgba(255,255,255,.75); box-shadow: 0 4px 12px rgba(0,0,0,.3); pointer-events: none; }
-  #jump { position: absolute; right: max(28px, env(safe-area-inset-right)); bottom: max(28px, env(safe-area-inset-bottom)); width: 96px; height: 96px; border-radius: 50%;
+  #jump { position: absolute; right: calc(max(28px, env(safe-area-inset-right)) + 80px); bottom: max(28px, env(safe-area-inset-bottom)); width: 96px; height: 96px; border-radius: 50%;
           border: 0; border-bottom: 5px solid var(--grass-dark); background: var(--grass); color: var(--grass-ink); font: 700 16px Nunito, sans-serif; }
   #jump:active { transform: translateY(2px); border-bottom-width: 3px; }
+  #dash-wrap { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: max(28px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  #dash { width: 60px; height: 60px; border-radius: 50%; border: 0; border-bottom: 4px solid #2f6fb5; background: #4a9de6; color: #0b2a4a; font: 700 13px Nunito, sans-serif; }
+  #dash:active { transform: translateY(2px); border-bottom-width: 2px; }
+  #dash:disabled { opacity: .45; }
+  .ticks { display: inline-flex; gap: 3px; vertical-align: middle; }
+  .ticks i { display: block; width: 6px; height: 14px; border-radius: 2px; background: #4a9de6; box-shadow: 0 0 0 1px rgba(0,0,0,.15) inset; }
+  .ticks i.off { background: rgba(120,140,160,.35); }
+  #dash-charges i { width: 9px; height: 5px; background: #fff; }
+  #dash-charges i.off { background: rgba(255,255,255,.3); }
   #touch-leave { position: absolute; right: max(16px, env(safe-area-inset-right)); top: max(16px, env(safe-area-inset-top)); opacity: .9; }
   #touch-mute { position: absolute; right: calc(max(16px, env(safe-area-inset-right)) + 76px); top: max(16px, env(safe-area-inset-top)); opacity: .9; }
   .hud-right { display: flex; gap: 8px; }
@@ -246,6 +255,7 @@
       <span class="hud-stat">⏱ <span id="hud-time">0.0 s</span></span>
       <span class="hud-stat">🪙 <span id="hud-coins">0</span></span>
       <span class="hud-stat" title="Velocidade extra por moedas e gemas">⚡ <span id="hud-speed">+0%</span></span>
+      <span class="hud-stat" title="Dash (Shift) — 4 por corrida">💨 <span id="hud-dash" class="ticks" aria-label="Cargas de dash"></span></span>
       <span class="hud-stat">🏁 <span id="hud-finished">0/1</span></span>
       <span id="hud-note" class="hud-note"></span>
     </div>
@@ -255,6 +265,7 @@
   <div class="hint">
     <span><kbd>←</kbd> <kbd>→</kbd> ou <kbd>A</kbd> <kbd>D</kbd> andar</span>
     <span><kbd>Espaço</kbd> / <kbd>↑</kbd> / <kbd>W</kbd> pular</span>
+    <span><kbd>Shift</kbd> dash (4 por corrida)</span>
     <span>Corra até a bandeira 🏁 · moedas e gemas aceleram · dano custa 15 moedas</span>
   </div>
   <div class="credit">Assets: Kenney · New Platformer Pack (CC0)</div>
@@ -262,6 +273,7 @@
     <div id="stick-zone" aria-label="Área do joystick (metade esquerda da tela)"></div>
     <div id="stick"><div id="knob"></div></div>
     <button type="button" id="jump" aria-label="Pular">PULAR</button>
+    <div id="dash-wrap"><div id="dash-charges" class="ticks" aria-label="Cargas de dash"></div><button type="button" id="dash" aria-label="Dash">DASH</button></div>
     <button type="button" id="touch-leave" class="btn ghost small">Sair</button>
     <button type="button" id="touch-mute" class="btn ghost small" data-mute aria-label="Som">🔊</button>
     <div id="rotate-note">Gire o celular para jogar na horizontal</div>
@@ -276,11 +288,11 @@
   </div>
 </section>
 
-<script src="config.js?v=46cd027"></script>
-<script src="level.js?v=46cd027"></script>
-<script src="game.js?v=46cd027"></script>
-<script src="music.js?v=46cd027"></script>
-<script src="lobby.js?v=46cd027"></script>
-<script src="touch.js?v=46cd027"></script>
+<script src="config.js?v=766ab5e"></script>
+<script src="level.js?v=766ab5e"></script>
+<script src="game.js?v=766ab5e"></script>
+<script src="music.js?v=766ab5e"></script>
+<script src="lobby.js?v=766ab5e"></script>
+<script src="touch.js?v=766ab5e"></script>
 </body>
 </html>

@@ -4,6 +4,7 @@
   const stick = document.getElementById('stick');
   const knob = document.getElementById('knob');
   const jump = document.getElementById('jump');
+  const dash = document.getElementById('dash');
   const leave = document.getElementById('touch-leave');
   if (!zone || !stick || !jump) return;
 
@@ -56,6 +57,11 @@
   jump.addEventListener('pointercancel', unpress);
   jump.addEventListener('pointerleave', unpress);
   jump.addEventListener('contextmenu', (e) => e.preventDefault());
+  if (dash) {
+    dash.addEventListener('pointerdown', (e) => { Game.setVirtualInput({ dash: true }); e.preventDefault(); });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) dash.addEventListener(ev, () => Game.setVirtualInput({ dash: false }));
+    dash.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
 
   leave.addEventListener('click', () => document.getElementById('leave').click());
 })();
