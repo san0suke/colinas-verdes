@@ -80,6 +80,12 @@ const Game = (() => {
   const COYOTE_TIME = 0.08;  // s
   const JUMP_BUFFER = 0.10;  // s
 
+  // quique ao cair em cima de outro jogador
+  const BODY_W = 60;             // largura considerada para "estar em cima" (px)
+  const BODY_H = 104;            // altura do corpo (o sprite de 128 tem ar em cima)
+  const BOUNCE_SPEED = 1050;     // px/s — mais forte que o pulo normal
+  const STOMP_TOLERANCE = 14;    // px — quanto os pés podem já ter passado da cabeça no frame anterior
+
   // As imagens do pack misturam camadas: fade_hills tem morros claros (221,239,255) e uma faixa
   // mais escura (195,227,255) na frente; color_hills tem morros azuis atrás dos verdes. Cada uma
   // vira uma camada própria (src = imagem de origem, pixel = filtro) com velocidade e altura próprias;
@@ -153,8 +159,22 @@ const Game = (() => {
     if (!jumpHeld() && player.vy < 0) player.vy *= Math.pow(JUMP_CUT, dt * 60);
 
     player.vy += GRAVITY * dt;
+    const prevY = player.y;
     player.x += player.vx * dt;
     player.y += player.vy * dt;
+
+    // pisou na cabeça de outro jogador: quica para cima (efeito "pinball")
+    if (player.vy > 0) {
+      for (const r of remote.values()) {
+        const headY = r.y - BODY_H;
+        if (Math.abs(player.x - r.x) < BODY_W && prevY <= headY + STOMP_TOLERANCE && player.y >= headY) {
+          player.y = headY;
+          player.vy = -BOUNCE_SPEED;
+          player.coyote = 0;
+          break;
+        }
+      }
+    }
 
     if (player.y >= GROUND_Y) { player.y = GROUND_Y; player.vy = 0; player.onGround = true; }
     else player.onGround = false;
