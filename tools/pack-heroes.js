@@ -9,7 +9,7 @@ const { PNG } = require('pngjs');
 
 const SRC = process.argv[2] || 'E:/Unity/emptyProjectForAssets/New Unity Project/Assets/PixelFantasy/PixelHeroes';
 const OUT = path.join(__dirname, '..', 'assets', 'heroes');
-const FRAMES = ['Idle_0', 'Idle_1', 'Run_0', 'Run_1', 'Run_2', 'Run_3', 'Jump_0', 'Jump_1', 'Jump_2', 'Death_0', 'Icon'];
+const FRAMES = ['Idle_0', 'Idle_1', 'Run_0', 'Run_1', 'Run_2', 'Run_3', 'Jump_0', 'Jump_1', 'Jump_2', 'Death_0', 'Icon', 'Slash_0', 'Slash_1', 'Slash_2', 'Slash_3', 'Death_2', 'Block_0'];
 // ordem de desenho (SpriteCollection.asset), sem Cape/Firearm/Mouth (tratamento especial no Unity / sem pasta)
 const LAYERS = [
   ['Back', 'FantasyHeroes/Sprites/Back'], ['Shield', 'FantasyHeroes/Sprites/Shield'], ['Body', 'FantasyHeroes/Sprites/Body'],

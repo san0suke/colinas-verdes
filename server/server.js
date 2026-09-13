@@ -7,6 +7,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const Level = require('../level.js');
+const ArenaLevel = require('../arena-level.js');
 
 const PORT = process.env.PORT || 8000;
 const STATIC_DIR = path.join(__dirname, '..');
@@ -19,6 +20,7 @@ const randomRoomName = () => `${ROOM_NOUN[Math.floor(Math.random() * ROOM_NOUN.l
 const COUNTDOWN_MS = 4000;      // contagem regressiva antes da largada
 const RESULTS_MS = 5000;        // placar na tela antes da próxima corrida
 const FINISH_GRACE_MS = 15000;  // depois que o primeiro chega, os outros têm este tempo
+const ARENA_HP = 3, ARENA_RANGE = 200, ARENA_CD_MS = 400, ARENA_INVULN_MS = 900; // combate (px em escala 4×)
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.txt': 'text/plain' };
 
 // ---------- estado ----------
@@ -43,7 +45,7 @@ function broadcastRooms() {
 function broadcastRoom(room, type, data, except) {
   for (const p of room.players.values()) if (p !== except) send(p, type, data);
 }
-const playerView = (c) => ({ id: c.id, nick: c.nick, color: c.color, hero: c.hero || '', x: c.x, y: c.y, f: c.f, a: c.a });
+const playerView = (c) => ({ id: c.id, nick: c.nick, color: c.color, hero: c.hero || '', x: c.x, y: c.y, f: c.f, a: c.a, hp: c.hp, alive: c.alive !== false });
 
 // ---------- corrida ----------
 // Cada sala tem uma corrida: seed (fase), startAt (largada), fase 'racing' ou 'results'.
@@ -60,6 +62,40 @@ function startRace(room, except) {
   room.race = { seed, level, finishX: level.finishX, startAt: Date.now() + COUNTDOWN_MS, phase: 'racing', finished: [], results: null, nextAt: null, broken: new Set(), activated: new Set(), taken: new Set(), endsAt: null, graceTimer: null };
   for (const p of room.players.values()) { p.finished = false; p.x = level.spawnX; p.y = level.spawnY; }
   broadcastRoom(room, 'race_start', raceView(room), except);
+}
+// ---------- arena (combate) ----------
+function arenaView(room, c) {
+  const a = room.arena;
+  return { seed: a.seed, startAt: a.startAt, phase: a.phase, results: a.results || null, nextAt: a.nextAt || null, now: Date.now(),
+    players: [...room.players.values()].map((p) => ({ id: p.id, hp: p.hp, alive: p.alive })), spawn: c ? a.spawnOf.get(c.id) || null : null };
+}
+function arenaSpawn(room, c) {
+  const a = room.arena; const sp = a.level.spawns[a.spawnIdx++ % a.level.spawns.length];
+  a.spawnOf.set(c.id, sp); c.x = sp.x * 4; c.y = sp.y * 4; c.hp = ARENA_HP; c.alive = true; c.lastAttack = 0; c.invulnUntil = 0;
+  return sp;
+}
+function startArena(room, except) {
+  clearTimeout(room.nextTimer);
+  const seed = crypto.randomInt(1, 2 ** 31);
+  const level = ArenaLevel.generate(seed);
+  room.arena = { seed, level, startAt: Date.now() + COUNTDOWN_MS, phase: 'fighting', deaths: [], results: null, nextAt: null, spawnIdx: 0, spawnOf: new Map() };
+  for (const p of room.players.values()) arenaSpawn(room, p);
+  for (const p of room.players.values()) if (p !== except) send(p, 'arena_start', arenaView(room, p));
+}
+function checkArenaEnd(room) {
+  const a = room.arena; if (!a || a.phase !== 'fighting') return;
+  const alive = [...room.players.values()].filter((p) => p.alive);
+  if (room.players.size >= 2 && alive.length <= 1) endArena(room, alive[0] || null);
+}
+function endArena(room, winner) {
+  const a = room.arena; a.phase = 'results';
+  const order = []; if (winner) order.push(winner);
+  for (const id of a.deaths.slice().reverse()) { const p = room.players.get(id); if (p) order.push(p); }
+  for (const p of room.players.values()) if (!order.includes(p)) order.push(p);
+  a.results = order.map((p, i) => ({ id: p.id, nick: p.nick, color: p.color, hero: p.hero || '', label: i === 0 && winner === p ? 'Venceu!' : (p.alive ? 'Sobreviveu' : 'Eliminado') }));
+  a.nextAt = Date.now() + RESULTS_MS;
+  broadcastRoom(room, 'arena_end', arenaView(room));
+  room.nextTimer = setTimeout(() => { if (rooms.has(room.code) && room.players.size > 0) startArena(room); }, RESULTS_MS);
 }
 function checkRaceEnd(room) {
   const r = room.race;
@@ -87,6 +123,7 @@ function leaveRoom(c, notify = true) {
   c.room = null;
   broadcastRoom(room, 'player_leave', { id: c.id });
   if (room.players.size === 0) { clearTimeout(room.nextTimer); if (room.race) clearTimeout(room.race.graceTimer); rooms.delete(room.code); } // a sala morre com o último jogador
+  else if (room.mode === 'arena') checkArenaEnd(room);
   else checkRaceEnd(room);
   if (notify) send(c, 'rooms', { rooms: publicRooms() });
   broadcastRooms();
@@ -98,10 +135,19 @@ function joinRoom(c, room) {
   const others = [...room.players.values()];
   c.x = 96; c.y = Level.GROUND * Level.TILE; c.f = 1; c.a = 'i'; c.finished = false; c.coins = 0;
   room.players.set(c.id, c);
+  if (room.mode === 'arena') {
+    if (!room.arena) startArena(room, c);
+    else if (room.players.size === 2 && room.arena.phase === 'fighting') startArena(room, c); // o 2º chegou: rodada nova para os dois
+    else if (room.arena.phase === 'fighting') arenaSpawn(room, c); // entra na rodada em andamento, com vida cheia
+    send(c, 'joined', { code: room.code, name: room.name, visibility: room.visibility, mode: room.mode, players: others.map(playerView), arena: arenaView(room, c) });
+    if (room.arena.phase === 'fighting') broadcastRoom(room, 'player_join', { player: playerView(c) }, c);
+    broadcastRooms();
+    return;
+  }
   if (!room.race) startRace(room, c); // o criador recebe a corrida no 'joined'
   // quem estava sozinho ganha companhia: recomeça a corrida para os dois largarem juntos
   else if (room.players.size === 2 && room.race.phase === 'racing') startRace(room, c);
-  send(c, 'joined', { code: room.code, name: room.name, visibility: room.visibility, players: others.map(playerView), race: raceView(room) });
+  send(c, 'joined', { code: room.code, name: room.name, visibility: room.visibility, mode: room.mode, players: others.map(playerView), race: raceView(room) });
   broadcastRoom(room, 'player_join', { player: playerView(c) }, c);
   broadcastRooms();
 }
@@ -111,6 +157,7 @@ const handlers = {
   hello(c, m) {
     c.nick = cleanText(m.nick, 16) || 'Jogador';
     c.color = COLORS.includes(m.color) ? m.color : COLORS[Math.floor(Math.random() * COLORS.length)];
+    c.hp = ARENA_HP; c.alive = true;
     c.hero = typeof m.hero === 'string' && m.hero.length <= 600 && m.hero.startsWith('{') ? m.hero : ''; // config do personagem (JSON), validada no cliente
     send(c, 'welcome', { id: c.id, color: c.color });
     send(c, 'rooms', { rooms: publicRooms() });
@@ -121,10 +168,10 @@ const handlers = {
   create(c, m) {
     const name = cleanText(m.name, 32) || randomRoomName();
     const visibility = m.visibility === 'private' ? 'private' : 'public';
-    const mode = ['race'].includes(m.mode) ? m.mode : 'race'; // modos de jogo (por enquanto só a corrida)
+    const mode = ['race', 'arena'].includes(m.mode) ? m.mode : 'race'; // modos de jogo
     const pass = visibility === 'private' ? String(m.password || '').slice(0, 32) : '';
     let code; do code = makeCode(); while (rooms.has(code));
-    const room = { code, name, visibility, mode, passHash: pass ? hashPass(code, pass) : null, createdBy: c.nick, createdAt: Date.now(), players: new Map(), race: null, nextTimer: null };
+    const room = { code, name, visibility, mode, passHash: pass ? hashPass(code, pass) : null, createdBy: c.nick, createdAt: Date.now(), players: new Map(), race: null, arena: null, nextTimer: null };
     rooms.set(code, room);
     joinRoom(c, room);
   },
@@ -140,7 +187,7 @@ const handlers = {
     if (!c.room) return;
     c.x = Number(m.x) || 0; c.y = Number(m.y) || 0;
     c.f = m.f === -1 ? -1 : 1;
-    c.a = ['i', 'w', 'j', 'h'].includes(m.a) ? m.a : 'i';
+    c.a = ['i', 'w', 'j', 'h', 'a', 'd'].includes(m.a) ? m.a : 'i';
     broadcastRoom(c.room, 'state', { id: c.id, x: c.x, y: c.y, f: c.f, a: c.a }, c);
   },
   // mundo compartilhado: primeiro que pisa quebra a caixa / ativa o bloco; primeiro que encosta leva o item
@@ -152,7 +199,7 @@ const handlers = {
     room.race.broken.add(key);
     broadcastRoom(room, 'crate', { r, c: col, by: c.id });
   },
-  hit(c, m) {
+  starblock(c, m) {
     const room = c.room; if (!room || !room.race || room.race.phase !== 'racing') return;
     const r = Number(m.r), col = Number(m.c), key = r + ',' + col;
     const cell = (room.race.level.cells[r] && room.race.level.cells[r][col]) || null;
@@ -166,6 +213,24 @@ const handlers = {
     if (!id || room.race.taken.has(id)) return;
     room.race.taken.add(id);
     broadcastRoom(room, 'taken', { id, by: c.id }, c);
+  },
+  attack(c) {
+    const room = c.room; if (!room || room.mode !== 'arena' || !room.arena || room.arena.phase !== 'fighting' || !c.alive) return;
+    broadcastRoom(room, 'player_attack', { id: c.id }, c);
+  },
+  hit(c, m) {
+    const room = c.room; if (!room || room.mode !== 'arena' || !room.arena || room.arena.phase !== 'fighting') return;
+    const a = room.arena, now = Date.now();
+    if (now < a.startAt || !c.alive) return;
+    const t = room.players.get(String(m.target)); if (!t || !t.alive || t === c) return;
+    if (now - c.lastAttack < ARENA_CD_MS) return; // um golpe por vez
+    if (now < t.invulnUntil) return;                // alvo ainda piscando
+    if (Math.hypot(t.x - c.x, t.y - c.y) > ARENA_RANGE) return; // longe demais (posições mais recentes conhecidas)
+    c.lastAttack = now; t.invulnUntil = now + ARENA_INVULN_MS;
+    t.hp = Math.max(0, (t.hp || 0) - 1);
+    const d = Math.hypot(t.x - c.x, t.y - c.y) || 1;
+    broadcastRoom(room, 'damage', { id: t.id, hp: t.hp, by: c.id, kx: (t.x - c.x) / d, ky: (t.y - c.y) / d });
+    if (t.hp <= 0) { t.alive = false; a.deaths.push(t.id); broadcastRoom(room, 'eliminated', { id: t.id, by: c.id, alive: [...room.players.values()].filter((p) => p.alive).length }); checkArenaEnd(room); }
   },
   finish(c, m) {
     const room = c.room;

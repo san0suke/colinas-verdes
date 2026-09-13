@@ -120,6 +120,8 @@
   .hud-players, .hud-stat { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .hud-stat { font-weight: 700; color: var(--ink); }
   .hud-note { font-size: 13px; color: var(--grass-dark); font-weight: 700; }
+  body.mode-arena .hud-race, body.mode-arena #dash-wrap, body.mode-arena .hint-race { display: none !important; }
+  .result .label { font-weight: 800; color: var(--grass-dark); }
   .hud-deadline { color: var(--error) !important; }
   #touch-hud { position: absolute; left: max(16px, env(safe-area-inset-left)); top: max(12px, env(safe-area-inset-top)); color: #fff; font: 700 15px Nunito, sans-serif; text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none; }
 
@@ -397,10 +399,10 @@
       <span id="hud-code" class="hud-code"></span>
       <span class="hud-players"><span id="hud-players">1</span> na sala</span>
       <span class="hud-stat">⏱ <span id="hud-time">0.0 s</span></span>
-      <span class="hud-stat">🪙 <span id="hud-coins">0</span></span>
-      <span class="hud-stat" title="Velocidade extra por moedas e gemas">⚡ <span id="hud-speed">+0%</span></span>
-      <span class="hud-stat" title="Dash (Shift) — 4 por corrida">💨 <span id="hud-dash" class="ticks" aria-label="Cargas de dash"></span></span>
-      <span class="hud-stat">🏁 <span id="hud-finished">0/1</span></span>
+      <span class="hud-stat hud-race">🪙 <span id="hud-coins">0</span></span>
+      <span class="hud-stat hud-race" title="Velocidade extra por moedas e gemas">⚡ <span id="hud-speed">+0%</span></span>
+      <span class="hud-stat hud-race" title="Dash (Shift) — 4 por corrida">💨 <span id="hud-dash" class="ticks" aria-label="Cargas de dash"></span></span>
+      <span class="hud-stat hud-race">🏁 <span id="hud-finished">0/1</span></span>
       <span id="hud-deadline" class="hud-stat hud-deadline"></span>
       <span id="hud-note" class="hud-note"></span>
     </div>
@@ -408,11 +410,12 @@
   </div>
   <canvas id="game" width="960" height="576" tabindex="0" aria-label="Corrida de plataforma"></canvas>
   <div class="hint">
-    <span><kbd>←</kbd> <kbd>→</kbd> ou <kbd>A</kbd> <kbd>D</kbd> andar</span>
-    <span><kbd>Espaço</kbd> / <kbd>↑</kbd> / <kbd>W</kbd> pular</span>
-    <span><kbd>Shift</kbd> dash (4 por corrida)</span>
-    <span>Caixas marrons: 3 gemas · bloco ! pode soltar uma estrela (+3 dashes)</span>
-    <span>Corra até a bandeira 🏁 · moedas e gemas aceleram · dano custa 15 moedas</span>
+    <span class="hint-race"><kbd>←</kbd> <kbd>→</kbd> ou <kbd>A</kbd> <kbd>D</kbd> andar</span>
+    <span class="hint-race"><kbd>Espaço</kbd> / <kbd>↑</kbd> / <kbd>W</kbd> pular</span>
+    <span class="hint-race"><kbd>Shift</kbd> dash (4 por corrida)</span>
+    <span class="hint-arena" hidden>Arena: <kbd>←↑↓→</kbd>/<kbd>WASD</kbd> andar · <kbd>Espaço</kbd>/<kbd>J</kbd> atacar</span>
+    <span class="hint-race">Caixas marrons: 3 gemas · bloco ! pode soltar uma estrela (+3 dashes)</span>
+    <span class="hint-race">Corra até a bandeira 🏁 · moedas e gemas aceleram · dano custa 15 moedas</span>
   </div>
   <div class="credit">Assets: Kenney · New Platformer Pack (CC0)</div>
   <div id="touch-ui">
@@ -444,19 +447,26 @@
           <span class="mode-name">Corrida louca</span>
           <span class="mode-desc">Fase gerada na hora. Quem chega primeiro na bandeira vence.</span>
         </button>
+        <button type="button" class="mode" data-mode="arena">
+          <img src="assets/modes/arena.png" alt="">
+          <span class="mode-name">Arena</span>
+          <span class="mode-desc">Combate visto de cima. 3 corações, espada na mão: o último de pé vence.</span>
+        </button>
       </div>
       <p class="mode-more">Mais modos em breve.</p>
       <div class="mode-actions"><button type="button" id="mode-cancel" class="btn ghost small">Cancelar</button></div>
     </div>
   </div>
 
-<script src="config.js?v=5a74b58"></script>
-<script src="level.js?v=5a74b58"></script>
-<script src="hero.js?v=5a74b58"></script>
-<script src="heroeditor.js?v=5a74b58"></script>
-<script src="game.js?v=5a74b58"></script>
-<script src="music.js?v=5a74b58"></script>
-<script src="lobby.js?v=5a74b58"></script>
-<script src="touch.js?v=5a74b58"></script>
+<script src="config.js?v=a321654"></script>
+<script src="level.js?v=a321654"></script>
+<script src="hero.js?v=a321654"></script>
+<script src="heroeditor.js?v=a321654"></script>
+<script src="arena-level.js?v=a321654"></script>
+<script src="arena.js?v=a321654"></script>
+<script src="game.js?v=a321654"></script>
+<script src="music.js?v=a321654"></script>
+<script src="lobby.js?v=a321654"></script>
+<script src="touch.js?v=a321654"></script>
 </body>
 </html>

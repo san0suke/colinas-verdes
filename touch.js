@@ -1,5 +1,6 @@
 // Controles de toque (celular): joystick à esquerda, botão de pular à direita, sair no canto.
 (() => {
+  const Engine = () => window.ActiveEngine || Game; // motor ativo (corrida ou arena)
   const zone = document.getElementById('stick-zone');
   const stick = document.getElementById('stick');
   const knob = document.getElementById('knob');
@@ -21,8 +22,8 @@
     const len = Math.hypot(dx, dy);
     if (len > RADIUS) { dx *= RADIUS / len; dy *= RADIUS / len; }
     moveKnob(dx, dy);
-    const h = dx / RADIUS;
-    Game.setVirtualInput({ left: h < -DEAD, right: h > DEAD });
+    const h = dx / RADIUS, v = dy / RADIUS;
+    Engine().setVirtualInput({ left: h < -DEAD, right: h > DEAD, up: v < -DEAD, down: v > DEAD });
   }
   function release(e) {
     if (e && e.pointerId !== pointerId) return;
@@ -30,7 +31,7 @@
     moveKnob(0, 0);
     stick.classList.remove('active');
     stick.style.left = ''; stick.style.top = ''; stick.style.bottom = ''; // volta ao canto
-    Game.setVirtualInput({ left: false, right: false });
+    Engine().setVirtualInput({ left: false, right: false });
   }
 
   // O joystick "nasce" onde o dedo encosta, em qualquer ponto da metade esquerda da tela
@@ -50,16 +51,16 @@
   zone.addEventListener('pointercancel', release);
   zone.addEventListener('lostpointercapture', release);
 
-  const press = (e) => { Game.setVirtualInput({ jump: true }); e.preventDefault(); };
-  const unpress = () => Game.setVirtualInput({ jump: false });
+  const press = (e) => { Engine().setVirtualInput({ jump: true }); e.preventDefault(); };
+  const unpress = () => Engine().setVirtualInput({ jump: false });
   jump.addEventListener('pointerdown', press);
   jump.addEventListener('pointerup', unpress);
   jump.addEventListener('pointercancel', unpress);
   jump.addEventListener('pointerleave', unpress);
   jump.addEventListener('contextmenu', (e) => e.preventDefault());
   if (dash) {
-    dash.addEventListener('pointerdown', (e) => { Game.setVirtualInput({ dash: true }); e.preventDefault(); });
-    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) dash.addEventListener(ev, () => Game.setVirtualInput({ dash: false }));
+    dash.addEventListener('pointerdown', (e) => { Engine().setVirtualInput({ dash: true }); e.preventDefault(); });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) dash.addEventListener(ev, () => Engine().setVirtualInput({ dash: false }));
     dash.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 

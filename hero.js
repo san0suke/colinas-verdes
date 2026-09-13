@@ -6,8 +6,8 @@ const Hero = (() => {
   const BASE = 'assets/heroes/';
   const RACE_LAYERS = ['Body', 'Head', 'Eyes', 'Arms', 'Ears'];          // seguem a raça
   const EQUIP = { hair: 'Hair', armor: 'Armor', helmet: 'Helmet', weapon: 'Weapon', shield: 'Shield', back: 'Back', mask: 'Mask', bracers: 'Bracers', horns: 'Horns' };
-  const ANIM = { i: ['Idle_0', 'Idle_1'], w: ['Run_0', 'Run_1', 'Run_2', 'Run_3'], j: ['Jump_1'], h: ['Death_0'] };
-  const FPS = { i: 2, w: 10, j: 1, h: 1 };
+  const ANIM = { i: ['Idle_0', 'Idle_1'], w: ['Run_0', 'Run_1', 'Run_2', 'Run_3'], j: ['Jump_1'], h: ['Death_0'], a: ['Slash_0', 'Slash_1', 'Slash_2', 'Slash_3'], d: ['Death_2'] };
+  const FPS = { i: 2, w: 10, j: 1, h: 1, a: 12, d: 1 };
   const HAIR_COLORS = ['', '#2b1d0e', '#6b3e1e', '#b5651d', '#e0b04a', '#f2e6b3', '#c0392b', '#e67e22', '#8e44ad', '#2e86de', '#27ae60', '#ecf0f1', '#111111', '#ff69b4'];
 
   let index = null, loading = null;
@@ -94,7 +94,8 @@ const Hero = (() => {
   }
   function frameIndex(anim, t) {
     const seq = ANIM[anim] || ANIM.i;
-    const name = seq[Math.floor(t * (FPS[anim] || 2)) % seq.length];
+    const k = Math.floor(t * (FPS[anim] || 2));
+    const name = anim === 'a' ? seq[Math.min(seq.length - 1, k)] : seq[k % seq.length];
     return index.frames.indexOf(name);
   }
   // desenha o herói com os pés em (x, y); retorna false se ainda não está pronto

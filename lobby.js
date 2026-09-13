@@ -41,10 +41,12 @@
       syncBestRtt = rtt;
       clockOffset = m.server + rtt / 2 - t1;
       clockSynced = true;
-      Game.setClockOffset(clockOffset);
+      Engine.setClockOffset(clockOffset);
     }
   }
   let soloSeed = 0;
+  let Engine = Game;               // motor da sala atual (Game = corrida, Arena = combate)
+  function setEngine(e) { Engine = e; window.ActiveEngine = e; document.body.classList.toggle('mode-arena', e === Arena); const jb = $('jump'); if (jb) jb.textContent = e === Arena ? 'ATACAR' : 'PULAR'; for (const x of document.querySelectorAll('.hint-arena')) x.hidden = e !== Arena; }
 
   // ---------- personagem ----------
   let heroStr = '';
@@ -177,7 +179,7 @@
 
   // ---------- sala / corrida ----------
   function pushRemote() {
-    Game.setRemote([...players.values()].map((p) => ({ peer: p.id, x: p.x, y: p.y, f: p.f, a: p.a, color: p.color, nick: p.nick, hero: p.hero || '' })));
+    Engine.setRemote([...players.values()].map((p) => ({ peer: p.id, x: p.x, y: p.y, f: p.f, a: p.a, color: p.color, nick: p.nick, hero: p.hero || '', hp: p.hp, alive: p.alive })));
     els.hudPlayers.textContent = String(players.size + 1);
   }
 
@@ -186,7 +188,7 @@
     race = r;
     if (!clockSynced) clockOffset = r.now - Date.now();
     hideResults();
-    Game.setFrozen(false);
+    Engine.setFrozen(false);
     Game.startRace({
       seed: r.seed, startAt: r.startAt, serverNow: r.now, clockOffset: clockSynced ? clockOffset : undefined,
       color: myColor, nick: nick(), hero: heroStr,
@@ -196,7 +198,7 @@
         else showResults([{ id: 'me', nick: nick(), color: myColor, time: Math.round(time * 1000), coins }], null);
       },
       onCrate: currentRoom ? (r, c) => sendMsg('break', { r, c }) : null,
-      onStarBlock: currentRoom ? (r, c) => sendMsg('hit', { r, c }) : null,
+      onStarBlock: currentRoom ? (r, c) => sendMsg('starblock', { r, c }) : null,
       onTake: currentRoom ? (id) => sendMsg('take', { id }) : null,
     });
     Game.applyWorld({ broken: r.broken, activated: r.activated });
@@ -206,8 +208,28 @@
   }
   function setNote(text) { els.hudNote.textContent = text; }
 
-  function enterRoom(r, list, raceInfo) {
-    if (!heroStr) refreshHero();
+  // rodada da arena (servidor): { seed, startAt, now, players:[{id,hp,alive}], spawn }
+  function beginArena(a) {
+    race = a;
+    if (!clockSynced) clockOffset = a.now - Date.now();
+    hideResults();
+    Engine.setFrozen(false);
+    for (const p of players.values()) { const st = (a.players || []).find((x) => x.id === p.id); if (st) { p.hp = st.hp; p.alive = st.alive; } }
+    Arena.start({
+      seed: a.seed, startAt: a.startAt, serverNow: a.now, clockOffset: clockSynced ? clockOffset : undefined,
+      id: myId, hero: heroStr, nick: nick(), spawn: a.spawn,
+      hp: (a.players || []).find((x) => x.id === myId)?.hp, alive: (a.players || []).find((x) => x.id === myId)?.alive,
+      onState: (s) => sendMsg('state', s),
+      onAttack: () => sendMsg('attack', {}),
+      onHit: (id) => sendMsg('hit', { target: id }),
+    });
+    pushRemote();
+    setNote('');
+  }
+
+  function enterRoom(r, list, raceInfo, arenaInfo) {
+    if (!heroStr) refreshHero(); // garante um personagem (aleatório se nunca escolheu) ao entrar na partida
+    setEngine(arenaInfo ? Arena : Game);
     currentRoom = r;
     askingCode = null; askingError = '';
     players.clear();
@@ -218,7 +240,10 @@
     if (isTouch && !fsElement()) show('gate');
     else { show('game'); els.canvas.focus(); }
     Music.start();
-    if (raceInfo) {
+    if (arenaInfo) {
+      beginArena(arenaInfo);
+      if (arenaInfo.phase === 'results') showResults(arenaInfo.results || [], arenaInfo.nextAt);
+    } else if (raceInfo) {
       beginRace(raceInfo);
       if (raceInfo.phase === 'results') showResults(raceInfo.results || [], raceInfo.nextAt);
     } else {
@@ -229,7 +254,7 @@
   }
 
   function leaveRoom() {
-    Game.stop();
+    Engine.stop();
     if (currentRoom) sendMsg('leave', {});
     currentRoom = null; race = null;
     players.clear();
@@ -242,7 +267,7 @@
   // ---------- placar ----------
   let resultsTimer = null, soloNextTimer = null;
   function showResults(list, nextAt) {
-    Game.setFrozen(true);
+    Engine.setFrozen(true);
     els.resultsList.innerHTML = '';
     list.forEach((p, i) => {
       const li = document.createElement('li');
@@ -251,15 +276,18 @@
       li.querySelector('.place').textContent = p.time == null ? '—' : `${i + 1}º`;
       li.querySelector('.avatar').dataset.color = p.color || 'green';
       li.querySelector('.name').textContent = p.nick || 'Jogador';
-      li.querySelector('.time').textContent = p.time == null ? 'não terminou' : fmtTime(p.time);
-      li.querySelector('.coins').textContent = `${p.coins || 0} 🪙`;
+      li.querySelector('.time').textContent = p.label != null ? p.label : (p.time == null ? 'não terminou' : fmtTime(p.time));
+      if (p.label != null) li.querySelector('.time').classList.add('label');
+      li.querySelector('.coins').textContent = p.label != null ? '' : `${p.coins || 0} 🪙`;
+      if (p.label != null) li.querySelector('.place').textContent = `${i + 1}º`;
       els.resultsList.appendChild(li);
     });
     els.results.hidden = false;
     clearInterval(resultsTimer);
     // jingle: venceu → Victory; chegou sem vencer → Complete; não terminou (ou entrou agora) → nada
     const me = list.find((p) => p.id === myId || p.id === 'me');
-    if (me && me.time != null) Music.playJingle(list[0] === me ? 'victory' : 'complete');
+    if (me && me.label != null) Music.playJingle(me.label === 'Venceu!' ? 'victory' : 'complete');
+    else if (me && me.time != null) Music.playJingle(list[0] === me ? 'victory' : 'complete');
     if (!currentRoom) { // sozinho: nova fase depois de 5 s
       nextAt = Date.now() + 5000;
       clearTimeout(soloNextTimer);
@@ -281,7 +309,7 @@
   let lastDashKey = '';
   setInterval(() => {
     if (currentScreen !== 'game' && currentScreen !== 'gate') return;
-    const s = Game.stats();
+    const s = Engine.stats();
     const t = s.time < 0 ? '0.0 s' : s.time >= 60 ? `${Math.floor(s.time / 60)}:${(s.time % 60).toFixed(1).padStart(4, '0')}` : `${s.time.toFixed(1)} s`;
     els.hudTime.textContent = t; els.touchTime.textContent = t;
     els.hudCoins.textContent = String(s.coins); els.touchCoins.textContent = String(s.coins);
@@ -304,7 +332,7 @@
     joined(m) {
       setMsg(els.createMsg, ''); setMsg(els.joinMsg, '');
       els.roomName.value = ''; els.roomPass.value = ''; els.joinCode.value = ''; els.joinPass.value = '';
-      enterRoom({ code: m.code, name: m.name, visibility: m.visibility }, m.players, m.race);
+      enterRoom({ code: m.code, name: m.name, visibility: m.visibility, mode: m.mode }, m.players, m.race, m.arena);
     },
     player_join(m) { if (currentRoom) { players.set(m.player.id, { ...m.player, x: Number(m.player.x) || 0, y: Number(m.player.y) || 0 }); pushRemote(); } },
     player_leave(m) { if (players.delete(m.id)) pushRemote(); },
@@ -316,6 +344,11 @@
       setNote(m.id === myId ? `Você chegou em ${m.place}º (${fmtTime(m.time)})` : `${m.nick} chegou em ${m.place}º`);
     },
     race_start(m) { if (currentRoom) beginRace(m); },
+    arena_start(m) { if (currentRoom) { for (const p of players.values()) { p.hp = Arena.MAX_HP; p.alive = true; } beginArena(m); } },
+    arena_end(m) { if (currentRoom) { race = m; if (!clockSynced) clockOffset = m.now - Date.now(); showResults(m.results || [], m.nextAt); } },
+    player_attack(m) { Arena.remoteAttack(m.id); },
+    damage(m) { const p = players.get(m.id); if (p) { p.hp = m.hp; if (m.hp <= 0) p.alive = false; } Arena.applyDamage(m); },
+    eliminated(m) { const p = players.get(m.id); if (p) p.alive = false; setNote(m.id === myId ? 'Você foi eliminado' : `${(p && p.nick) || 'Alguém'} foi eliminado · ${m.alive} vivo(s)`); },
     crate(m) { Game.breakCrate(m.r, m.c, { sound: m.by !== myId }); },
     star_block(m) { Game.activateStar(m.r, m.c, { sound: m.by !== myId }); },
     taken(m) { if (m.by !== myId) Game.removeItem(m.id); },
@@ -355,7 +388,7 @@
     if (!priv) els.roomPass.value = '';
   });
   // criar sala: primeiro escolhe o modo de jogo num modal
-  const MODE_NAMES = { race: 'Corrida louca' };
+  const MODE_NAMES = { race: 'Corrida louca', arena: 'Arena' };
   const modeModal = $('mode-modal');
   els.createForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -379,7 +412,7 @@
     setMsg(els.joinMsg, 'Procurando…');
     sendMsg('join', { code, password: els.joinPass.value });
   });
-  els.solo.addEventListener('click', () => enterRoom(null));
+  els.solo.addEventListener('click', () => { setEngine(Game); enterRoom(null); });
   $('btn-hero').addEventListener('click', () => { show('hero'); HeroEditor.show(); });
   HeroEditor.init({ onClose: () => show('lobby') });
   els.leave.addEventListener('click', leaveRoom);
@@ -392,6 +425,7 @@
     els.passRow.hidden = true;
     setOnline(false);
     await Game.load(els.canvas);
+    try { await Arena.load(els.canvas); } catch (e) { console.warn('arena indisponível', e); }
     try { await Hero.load(); } catch (e) { console.warn('heróis indisponíveis', e); }
     refreshHero();
     // avatar do lobby atualiza quando as peças terminam de carregar
@@ -400,6 +434,7 @@
     // ?solo=1&seed=N: entra direto jogando sozinho (útil para testes)
     const q = new URLSearchParams(location.search);
     if (q.get('hero')) { show('hero'); HeroEditor.show(); } // ?hero=1 abre o editor direto (testes)
+    if (q.get('arena')) { setEngine(Arena); show('game'); Arena.start({ seed: +(q.get('seed') || 7), startAt: Date.now() + 1000, serverNow: Date.now(), id: 'me', hero: heroStr, nick: nick() }); }
     if (q.get('solo')) { if (q.get('seed')) soloSeed = +q.get('seed'); enterRoom(null); if (q.get('x')) Game.__test.player.x = +q.get('x'); }
   })().catch((err) => { setStatus('Erro: ' + err.message, 'error'); console.error(err); });
 })();
