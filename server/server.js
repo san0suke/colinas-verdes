@@ -17,7 +17,7 @@ const ROOM_ADJ = ['Verde', 'Azul', 'Dourada', 'Secreta', 'Alegre', 'Ventosa', 'A
 const ROOM_NOUN = ['Colina', 'Trilha', 'Clareira', 'Pradaria', 'Encosta', 'Campina', 'Várzea', 'Ladeira', 'Planície', 'Ilha'];
 const randomRoomName = () => `${ROOM_NOUN[Math.floor(Math.random() * ROOM_NOUN.length)]} ${ROOM_ADJ[Math.floor(Math.random() * ROOM_ADJ.length)]}`;
 const COUNTDOWN_MS = 4000;      // contagem regressiva antes da largada
-const RESULTS_MS = 10000;       // placar na tela antes da próxima corrida
+const RESULTS_MS = 5000;        // placar na tela antes da próxima corrida
 const FINISH_GRACE_MS = 15000;  // depois que o primeiro chega, os outros têm este tempo
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.txt': 'text/plain' };
 

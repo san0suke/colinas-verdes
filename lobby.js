@@ -223,12 +223,12 @@
     // jingle: venceu → Victory; chegou sem vencer → Complete; não terminou (ou entrou agora) → nada
     const me = list.find((p) => p.id === myId || p.id === 'me');
     if (me && me.time != null) Music.playJingle(list[0] === me ? 'victory' : 'complete');
-    if (!currentRoom) { // sozinho: nova fase depois de 6 s
-      nextAt = Date.now() + 6000;
+    if (!currentRoom) { // sozinho: nova fase depois de 5 s
+      nextAt = Date.now() + 5000;
       clearTimeout(soloNextTimer);
       soloNextTimer = setTimeout(() => {
         if (!currentRoom && currentScreen !== 'lobby') { soloSeed = Math.floor(Math.random() * 2 ** 31); beginRace({ seed: soloSeed, startAt: Date.now() + 4000, now: Date.now(), phase: 'racing', finished: 0 }); }
-      }, 6000);
+      }, 5000);
     }
     const tick = () => {
       if (nextAt == null) { els.resultsNext.textContent = ''; return; }
