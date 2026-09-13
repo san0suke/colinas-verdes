@@ -89,7 +89,7 @@
     banner2:{ set: 'dungeon', idx: 88, tw: 1, th: 2, deco: true },
     lantern:{ set: 'dungeon', idx: 104, tw: 1, th: 1, deco: true },
     grate:  { set: 'dungeon', idx: 63, tw: 3, th: 3, deco: true },
-    plates: { set: 'dungeon', idx: 65, tw: 3, th: 1, deco: true },
+    plates: { set: 'dungeon', idx: 65, tw: 3, th: 1, block: true },
     torii:  { set: 'dungeon', idx: 64, tw: 3, th: 2, block: true },
     torch:  { set: 'dungeon', idx: 39, tw: 1, th: 2, block: true },
   };
@@ -227,15 +227,15 @@ kkkkkkkkkkkkkkkkkkkkkkkkkk
 kWWWWWWWWWWWWWWWWWWWWWWWWk
 kWppppppppppppppppppppppWk
 kWppppppppppppppppppppppWk
-kWpppWWWWpppppppppWWWpppWk
-kWpppWllWpppppppppWlWpppWk
-kWpppWWWWpppppppppWWWpppWk
+kWpplllpppppppppppplllppWk
+kWplllllpppppppppplllllpWk
+kWpplllpppppppppppplllppWk
 kWppppppppppppppppppppppWk
 kWppppppppppppppppppppppWk
-kWppppppppppWWWpppppppppWk
-kWpppWWWppppWlWpppWWWWWpWk
-kWpppWlWppppWWWpppWlllWpWk
-kWpppWWWppppppppppWWWWWpWk
+kWpppppppppplllpppppppppWk
+kWpplllppppplllppplllpppWk
+kWpllllpppppppppppllllppWk
+kWppllppppppppppppplppppWk
 kWppppppppppppppppppppppWk
 kWWWWWWWWWWWWWWWWWWWWWWWWk
 kkkkkkkkkkkkkkkkkkkkkkkkkk`),
@@ -245,7 +245,7 @@ kkkkkkkkkkkkkkkkkkkkkkkkkk`),
         { k: 'pot', tx: 2, ty: 12 }, { k: 'pot2', tx: 3, ty: 12 }, { k: 'pot', tx: 22, ty: 2 }, { k: 'pot2', tx: 20, ty: 12 },
         { k: 'skull', tx: 7, ty: 8 }, { k: 'bones', tx: 17, ty: 8 }, { k: 'skull', tx: 12, ty: 13 },
         { k: 'banner', tx: 6, ty: 0 }, { k: 'banner2', tx: 9, ty: 0 }, { k: 'banner', tx: 17, ty: 0 }, { k: 'banner2', tx: 20, ty: 0 },
-        { k: 'lantern', tx: 5, ty: 3 }, { k: 'lantern', tx: 19, ty: 3 }, { k: 'lantern', tx: 7, ty: 11 }, { k: 'lantern', tx: 21, ty: 10 },
+        { k: 'lantern', tx: 8, ty: 4 }, { k: 'lantern', tx: 17, ty: 4 }, { k: 'lantern', tx: 7, ty: 12 }, { k: 'lantern', tx: 22, ty: 10 },
         { k: 'grate', tx: 12, ty: 5 }, { k: 'plates', tx: 5, ty: 8 },
       ],
     },

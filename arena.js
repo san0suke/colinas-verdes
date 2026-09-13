@@ -69,7 +69,8 @@ const Arena = (() => {
   const TRAIL_SET = { x: 0, y: 320 };                  // grama + terra alaranjada (1 quadro)
   const WF = { x: 64, y: 320 }, WF_FX = { x: 64, y: 336 }; // cachoeira: 3 colunas (esq/meio/dir) × 3 quadros; espuma da base 16×32 × 3 quadros
   const BASE_OF = { village: 'g', forest: 'g', desert: 's', winter: 'n', dungeon: 'p' }; // chão por baixo da água/cachoeira
-  let waterTiles = [], wfTiles = [], wfFx = [];
+  const LAVA_SET_Y = 256; // pedra + lava (4 quadros)
+  let waterTiles = [], lavaTiles = [], wfTiles = [], wfFx = [];
   // lista de peças da grade dual para o caractere ch (vértices entre 4 células)
   function dualTiles(ch) {
     const out = [];
@@ -84,6 +85,7 @@ const Arena = (() => {
     if (!autoImg) return;
     const fr = Math.floor(t * 3) % 4, wy = WATER_SET_Y[level.theme] || 0;
     for (const w of waterTiles) if (w.x + TS > cx && w.x < cx + VW && w.y + TS > cy && w.y < cy + VH) ctx.drawImage(autoImg, fr * 64 + w.tx * TILE, wy + w.ty * TILE, TILE, TILE, w.x - cx, w.y - cy, TS, TS);
+    for (const w of lavaTiles) if (w.x + TS > cx && w.x < cx + VW && w.y + TS > cy && w.y < cy + VH) ctx.drawImage(autoImg, fr * 64 + w.tx * TILE, LAVA_SET_Y + w.ty * TILE, TILE, TILE, w.x - cx, w.y - cy, TS, TS);
     const wf = Math.floor(t * 9) % 3;
     for (const w of wfTiles) ctx.drawImage(autoImg, WF.x + wf * 48 + w.col * TILE, WF.y, TILE, TILE, w.x - cx, w.y - cy, TS, TS);
     for (const w of wfFx) ctx.drawImage(autoImg, WF_FX.x + wf * TILE, WF_FX.y, TILE, TILE * 2, w.x - cx, w.y - cy, TS, TS * 2);
@@ -95,7 +97,7 @@ const Arena = (() => {
     for (let r = 0; r < level.rows; r++) for (let c = 0; c < level.cols; c++) {
       const k = level.ground[r][c];
       if (k === 'k') continue;
-      if (k === 'w' || k === 'f') { const b = GROUND[BASE_OF[level.theme] || 'g']; drawTile(g, b, c * TS, r * TS, (c % (b.w / TILE)) * TILE, (r % (b.h / TILE)) * TILE); continue; } // água/cachoeira: chão por baixo, camada animada por cima
+      if (k === 'w' || k === 'f' || k === 'l') { const b = GROUND[BASE_OF[level.theme] || 'g']; drawTile(g, b, c * TS, r * TS, (c % (b.w / TILE)) * TILE, (r % (b.h / TILE)) * TILE); continue; } // água/cachoeira: chão por baixo, camada animada por cima
       if (k === 'd') { g.drawImage(autoImg, TRAIL_SET.x, TRAIL_SET.y + 48, TILE, TILE, c * TS, r * TS, TS, TS); continue; } // terra da trilha (peça cheia do conjunto)
       if (k === 'W') {
         drawTile(g, GROUND.p, c * TS, r * TS, (c % 2) * TILE, (r % 2) * TILE); // piso por baixo (o anel tem cantos transparentes)
@@ -115,7 +117,7 @@ const Arena = (() => {
     // beiradas da trilha (grade dual, estática)
     for (const d of dualTiles('d')) if (d.m !== 15) g.drawImage(autoImg, TRAIL_SET.x + d.tx * TILE, TRAIL_SET.y + d.ty * TILE, TILE, TILE, d.x, d.y, TS, TS);
     // lagos e cachoeira (animados no render)
-    waterTiles = dualTiles('w'); wfTiles = []; wfFx = [];
+    waterTiles = dualTiles('w'); lavaTiles = dualTiles('l'); wfTiles = []; wfFx = [];
     for (let r = 0; r < level.rows; r++) for (let c = 0; c < level.cols; c++) if (cellIs(r, c, 'f')) {
       wfTiles.push({ x: c * TS, y: r * TS, col: !cellIs(r, c - 1, 'f') ? 0 : !cellIs(r, c + 1, 'f') ? 2 : 1 });
       if (!cellIs(r + 1, c, 'f')) wfFx.push({ x: c * TS, y: r * TS }); // espuma na base (metade sobre a queda, metade sobre a água)
