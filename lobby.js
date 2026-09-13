@@ -214,7 +214,7 @@
     if (!clockSynced) clockOffset = a.now - Date.now();
     hideResults();
     Engine.setFrozen(false);
-    for (const p of players.values()) { const st = (a.players || []).find((x) => x.id === p.id); if (st) { p.hp = st.hp; p.alive = st.alive; } }
+    for (const p of players.values()) { const st = (a.players || []).find((x) => x.id === p.id); if (st) { p.hp = st.hp; p.alive = st.alive; if (Number.isFinite(st.x)) { p.x = st.x; p.y = st.y; p.a = 'i'; } } }
     Arena.start({
       seed: a.seed, startAt: a.startAt, serverNow: a.now, clockOffset: clockSynced ? clockOffset : undefined,
       id: myId, hero: heroStr, nick: nick(), spawn: a.spawn,

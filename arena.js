@@ -59,7 +59,17 @@ const Arena = (() => {
     p: { x: 48, y: 528, w: 32, h: 32 }, w: { x: 192, y: 528, w: 48, h: 48 }, l: { x: 80, y: 528, w: 32, h: 32 },
   };
   const WALL_RING = { x: 869, y: 337, w: 48, h: 48 }; // anel de pedra cinza (9 fatias) para paredes da masmorra
+  // blocos de água 3×3 com borda (9 fatias) da seção Overworld: azul-escuro (lagos) e ciano (gelo/oásis)
+  const WATER_BLOCKS = { foam: { x: 272, y: 304 }, cyan: { x: 64, y: 1152 } }; // espuma (lagos) e ciano (lago congelado)
+  const waterBlock = () => level.theme === 'winter' ? WATER_BLOCKS.cyan : WATER_BLOCKS.foam;
   const isWall = (r, c) => r >= 0 && c >= 0 && r < level.rows && c < level.cols && level.ground[r][c] === 'W';
+  const isWater = (r, c) => r >= 0 && c >= 0 && r < level.rows && c < level.cols && level.ground[r][c] === 'w';
+  // fatia do bloco de água pela vizinhança: borda onde não há água ao lado
+  function waterSlice(r, c) {
+    const U = isWater(r - 1, c), D = isWater(r + 1, c), L = isWater(r, c - 1), R = isWater(r, c + 1);
+    const sx = !L ? 0 : !R ? 32 : 16, sy = !U ? 0 : !D ? 32 : 16;
+    return { sx, sy };
+  }
   function prerenderGround() {
     ground = document.createElement('canvas'); ground.width = level.width * S; ground.height = level.height * S;
     const g = ground.getContext('2d'); g.imageSmoothingEnabled = false;
@@ -67,7 +77,9 @@ const Arena = (() => {
     for (let r = 0; r < level.rows; r++) for (let c = 0; c < level.cols; c++) {
       const k = level.ground[r][c];
       if (k === 'k') continue;
+      if (k === 'w') { const { sx, sy } = waterSlice(r, c), wb = waterBlock(); g.drawImage(atlas, wb.x + sx, wb.y + sy, TILE, TILE, c * TS, r * TS, TS, TS); continue; }
       if (k === 'W') {
+        drawTile(g, GROUND.p, c * TS, r * TS, (c % 2) * TILE, (r % 2) * TILE); // piso por baixo (o anel tem cantos transparentes)
         // 9 fatias do anel: escolhe pela vizinhança (linhas de 1 tile)
         const L = isWall(r, c - 1), R = isWall(r, c + 1), U = isWall(r - 1, c), D = isWall(r + 1, c);
         let sx = 16, sy = 0; // borda de cima (horizontal)
@@ -219,6 +231,8 @@ const Arena = (() => {
     const tick = Math.ceil(-now); if (now < 0 && tick <= 3 && tick !== lastTick) { lastTick = tick; play('tick'); }
   }
   let lastTick = 99;
+  // aba em segundo plano: o navegador pausa o rAF; um timer lento mantém o jogador "vivo" para os outros
+  setInterval(() => { if (running && document.hidden) { update(0.25); last = performance.now(); } }, 250);
   function frame(ts) { if (!running) return; const dt = Math.max(0, Math.min(0.05, (ts - last) / 1000)); last = ts; update(dt); render(); raf = requestAnimationFrame(frame); }
 
   // ---------- API ----------
@@ -249,6 +263,7 @@ const Arena = (() => {
     Object.assign(player, { id: opts.id || '', x: sp.x * S, y: sp.y * S, vx: 0, vy: 0, facing: 1, hp: opts.hp == null ? MAX_HP : opts.hp, alive: opts.alive !== false, attackT: -1, cd: 0, invuln: 0, hurtT: 0, kx: 0, ky: 0, hero: opts.hero ? Hero.decode(opts.hero) : null, nick: opts.nick || '', animTime: 0, dashT: 0, dashCd: 0, dashDx: 1, dashDy: 0 });
     camera.x = Math.max(0, Math.min(level.width * S - W, player.x - W / 2)); camera.y = Math.max(0, Math.min(level.height * S - H, player.y - H / 2));
     frozen = false; lastSent = ''; lastTick = 99;
+    if (hooks.onState) { const s = { x: Math.round(player.x), y: Math.round(player.y), f: player.facing, a: player.alive ? 'i' : 'd' }; lastSent = `${s.x},${s.y},${s.f},${s.a}`; hooks.onState(s); }
     if (!running) {
       keys.clear(); Object.assign(virt, { left: false, right: false, up: false, down: false, jump: false, dash: false });
       addEventListener('keydown', onKeyDown); addEventListener('keyup', onKeyUp); addEventListener('blur', onBlur);

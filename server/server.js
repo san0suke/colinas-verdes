@@ -67,7 +67,7 @@ function startRace(room, except) {
 function arenaView(room, c) {
   const a = room.arena;
   return { seed: a.seed, startAt: a.startAt, phase: a.phase, results: a.results || null, nextAt: a.nextAt || null, now: Date.now(),
-    players: [...room.players.values()].map((p) => ({ id: p.id, hp: p.hp, alive: p.alive })), spawn: c ? a.spawnOf.get(c.id) || null : null };
+    players: [...room.players.values()].map((p) => ({ id: p.id, hp: p.hp, alive: p.alive, x: p.x, y: p.y })), spawn: c ? a.spawnOf.get(c.id) || null : null };
 }
 function arenaSpawn(room, c) {
   const a = room.arena; const sp = a.level.spawns[a.spawnIdx++ % a.level.spawns.length];
