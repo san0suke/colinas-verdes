@@ -25,6 +25,25 @@
   let lastRooms = [];              // última lista recebida do servidor
   let race = null;                 // { seed, startAt, phase, results, nextAt, finished }
   let clockOffset = 0;             // relógio do servidor − local
+  let clockSynced = false;         // já medimos por ping-pong? (senão usa o "now" das mensagens, sem compensar latência)
+  let syncBestRtt = Infinity, syncTimer = null;
+  // Mede o relógio do servidor descontando a ida e volta: 6 pings, fica com o de menor RTT; repete a cada 30 s.
+  function syncClock() {
+    syncBestRtt = Infinity;
+    let n = 0;
+    const tick = () => { if (ws && ws.readyState === 1) sendMsg('ping', { t0: Date.now() }); if (++n < 6) setTimeout(tick, 150); };
+    tick();
+  }
+  function onPong(m) {
+    const t1 = Date.now(), rtt = t1 - m.t0;
+    if (rtt < 0 || rtt > 5000) return;
+    if (rtt <= syncBestRtt) {
+      syncBestRtt = rtt;
+      clockOffset = m.server + rtt / 2 - t1;
+      clockSynced = true;
+      Game.setClockOffset(clockOffset);
+    }
+  }
   let soloSeed = 0;
 
   // ---------- util ----------
@@ -148,11 +167,11 @@
   // Começa a corrida recebida do servidor (ou uma local, sozinho)
   function beginRace(r) {
     race = r;
-    clockOffset = r.now - Date.now();
+    if (!clockSynced) clockOffset = r.now - Date.now();
     hideResults();
     Game.setFrozen(false);
     Game.startRace({
-      seed: r.seed, startAt: r.startAt, serverNow: r.now,
+      seed: r.seed, startAt: r.startAt, serverNow: r.now, clockOffset: clockSynced ? clockOffset : undefined,
       color: myColor, nick: nick(),
       onState: currentRoom ? (s) => sendMsg('state', s) : null,
       onFinish: ({ coins, time }) => {
@@ -281,7 +300,8 @@
     crate(m) { Game.breakCrate(m.r, m.c, { sound: m.by !== myId }); },
     star_block(m) { Game.activateStar(m.r, m.c, { sound: m.by !== myId }); },
     taken(m) { if (m.by !== myId) Game.removeItem(m.id); },
-    race_end(m) { if (currentRoom) { race = m; clockOffset = m.now - Date.now(); showResults(m.results || [], m.nextAt); } },
+    race_end(m) { if (currentRoom) { race = m; if (!clockSynced) clockOffset = m.now - Date.now(); showResults(m.results || [], m.nextAt); } },
+    pong(m) { onPong(m); },
     error(m) {
       if (m.ctx === 'join' && askingCode) { askingError = m.msg || 'Erro'; renderRooms(lastRooms); return; }
       setMsg(m.ctx === 'join' ? els.joinMsg : els.createMsg, m.msg || 'Erro', 'error');
@@ -294,7 +314,10 @@
     if (!url) { setStatus('Offline — sem servidor configurado', 'warn'); return; }
     setStatus('Conectando…', 'warn');
     ws = new WebSocket(url);
-    ws.onopen = () => { reconnectDelay = 1000; setOnline(true); setStatus('Online', 'ok'); sendMsg('hello', { nick: nick(), color: myColor }); };
+    ws.onopen = () => {
+      reconnectDelay = 1000; setOnline(true); setStatus('Online', 'ok'); sendMsg('hello', { nick: nick(), color: myColor });
+      clockSynced = false; syncClock(); clearInterval(syncTimer); syncTimer = setInterval(syncClock, 30000);
+    };
     ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } const h = on[m && m.type]; if (h) h(m); };
     ws.onclose = () => {
       setOnline(false);

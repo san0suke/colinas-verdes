@@ -506,7 +506,7 @@ const Game = (() => {
     level = Level.generate(opts.seed);
     collected.clear(); dead.clear(); broken.clear(); activated.clear(); items = []; particles = []; springs = new Map();
     remote.clear();
-    clockOffset = opts.serverNow - Date.now();
+    clockOffset = Number.isFinite(opts.clockOffset) ? opts.clockOffset : opts.serverNow - Date.now();
     startAt = opts.startAt;
     hooks = { onState: opts.onState, onFinish: opts.onFinish, onCrate: opts.onCrate, onStarBlock: opts.onStarBlock, onTake: opts.onTake };
     pending.clear();
@@ -525,6 +525,7 @@ const Game = (() => {
     hooks = {};
   }
   function setFrozen(v) { frozen = v; }
+  function setClockOffset(v) { if (Number.isFinite(v)) clockOffset = v; }
   function setRemote(list) {
     const seen = new Set();
     for (const p of list) {
@@ -541,6 +542,6 @@ const Game = (() => {
   // gancho para testes automatizados (node): roda a física sem canvas
   const __test = { update, player, keys, setLevel: (l, sa) => { level = l; startAt = sa; clockOffset = 0; } };
 
-  return { load, startRace, stop, setRemote, setVirtualInput, setFrozen, stats, setMuted, breakCrate, activateStar, removeItem, applyWorld, COLORS, W, H, __test };
+  return { load, startRace, stop, setRemote, setVirtualInput, setFrozen, setClockOffset, stats, setMuted, breakCrate, activateStar, removeItem, applyWorld, COLORS, W, H, __test };
 })();
 if (typeof module === 'object' && module.exports) module.exports = Game;
