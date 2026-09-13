@@ -49,13 +49,13 @@ const playerView = (c) => ({ id: c.id, nick: c.nick, color: c.color, x: c.x, y: 
 // A corrida acaba quando o penúltimo cruza a chegada (com 1 ou 2 jogadores, quando o primeiro cruza).
 function raceView(room) {
   const r = room.race;
-  return { seed: r.seed, startAt: r.startAt, phase: r.phase, results: r.results || null, nextAt: r.nextAt || null, finished: r.finished.length, now: Date.now() };
+  return { seed: r.seed, startAt: r.startAt, phase: r.phase, results: r.results || null, nextAt: r.nextAt || null, finished: r.finished.length, broken: [...r.broken], activated: [...r.activated], now: Date.now() };
 }
 function startRace(room, except) {
   clearTimeout(room.nextTimer);
   const seed = crypto.randomInt(1, 2 ** 31);
   const level = Level.generate(seed);
-  room.race = { seed, finishX: level.finishX, startAt: Date.now() + COUNTDOWN_MS, phase: 'racing', finished: [], results: null, nextAt: null };
+  room.race = { seed, level, finishX: level.finishX, startAt: Date.now() + COUNTDOWN_MS, phase: 'racing', finished: [], results: null, nextAt: null, broken: new Set(), activated: new Set(), taken: new Set() };
   for (const p of room.players.values()) { p.finished = false; p.x = level.spawnX; p.y = level.spawnY; }
   broadcastRoom(room, 'race_start', raceView(room), except);
 }
@@ -135,6 +135,30 @@ const handlers = {
     c.f = m.f === -1 ? -1 : 1;
     c.a = ['i', 'w', 'j', 'h'].includes(m.a) ? m.a : 'i';
     broadcastRoom(c.room, 'state', { id: c.id, x: c.x, y: c.y, f: c.f, a: c.a }, c);
+  },
+  // mundo compartilhado: primeiro que pisa quebra a caixa / ativa o bloco; primeiro que encosta leva o item
+  break(c, m) {
+    const room = c.room; if (!room || !room.race || room.race.phase !== 'racing') return;
+    const r = Number(m.r), col = Number(m.c), key = r + ',' + col;
+    const cell = (room.race.level.cells[r] && room.race.level.cells[r][col]) || null;
+    if (!cell || !cell.crate || room.race.broken.has(key)) return;
+    room.race.broken.add(key);
+    broadcastRoom(room, 'crate', { r, c: col, by: c.id });
+  },
+  hit(c, m) {
+    const room = c.room; if (!room || !room.race || room.race.phase !== 'racing') return;
+    const r = Number(m.r), col = Number(m.c), key = r + ',' + col;
+    const cell = (room.race.level.cells[r] && room.race.level.cells[r][col]) || null;
+    if (!cell || !cell.star || room.race.activated.has(key)) return;
+    room.race.activated.add(key);
+    broadcastRoom(room, 'star_block', { r, c: col, by: c.id });
+  },
+  take(c, m) {
+    const room = c.room; if (!room || !room.race) return;
+    const id = String(m.id || '').slice(0, 40);
+    if (!id || room.race.taken.has(id)) return;
+    room.race.taken.add(id);
+    broadcastRoom(room, 'taken', { id, by: c.id }, c);
   },
   finish(c, m) {
     const room = c.room;

@@ -114,7 +114,8 @@ const Game = (() => {
   // ---------- grade ----------
   const broken = new Set();               // "r,c" de caixas quebradas (somem)
   const activated = new Set();            // "r,c" de blocos "!" já usados
-  let items = [];                         // estrelas soltas: { x, y, vy, t }
+  let items = [];                         // itens soltos (gemas de caixa, estrelas): { id, kind, s, x, y, vx, vy, t }
+  const pending = new Set();              // caixas/blocos que já avisamos ao servidor (evita repetir)
   let particles = [];                     // gemas voando ao quebrar caixa: { x, y, vx, vy, t, s }
   // superfície da rampa na coluna do centro do jogador; null se não há rampa por perto
   function slopeAt(x, yFrom, yTo) {
@@ -148,6 +149,32 @@ const Game = (() => {
     player.coins -= lost;
     player.lossText = lost > 0 ? `−${lost}` : ''; player.lossUntil = 1.2;
     respawn();
+  }
+
+  // ---------- mundo compartilhado (caixas, blocos "!", itens) ----------
+  function breakCrate(r, c, opts) {
+    const key = r + ',' + c;
+    if (broken.has(key)) return;
+    const cell = (level.cells[r] && level.cells[r][c]) || null;
+    if (!cell || !cell.crate) return;
+    broken.add(key);
+    if (opts && opts.sound) play('crate');
+    for (let i = 0; i < CRATE_GEMS; i++) items.push({ id: `${key},${i}`, kind: 'gem', s: 'gem_green', x: c * TILE + 32, y: (r + 1) * TILE, vx: (i - 1) * 150, vy: -560, t: 0 });
+  }
+  function activateStar(r, c, opts) {
+    const key = r + ',' + c;
+    if (activated.has(key)) return;
+    const cell = (level.cells[r] && level.cells[r][c]) || null;
+    if (!cell || !cell.star) return;
+    activated.add(key);
+    if (opts && opts.sound) play('pop');
+    items.push({ id: `${key},star`, kind: 'star', s: 'star', x: c * TILE + 32, y: r * TILE, vx: 0, vy: -380, t: 0 });
+  }
+  function removeItem(id) { items = items.filter((it) => it.id !== id); }
+  // estado que quem entra no meio recebe: caixas já quebradas e blocos já usados (sem os itens)
+  function applyWorld(w) {
+    for (const key of (w && w.broken) || []) broken.add(key);
+    for (const key of (w && w.activated) || []) activated.add(key);
   }
 
   // ---------- inimigos (movimento determinístico em função do tempo) ----------
@@ -244,12 +271,13 @@ const Game = (() => {
         if (cell.k === 'solid' || ((cell.k === 'oneway' || cell.k === 'spring') && prevY <= top + 6)) {
           if (player.y >= top - snap) {
             player.y = top; player.vy = 0; player.onGround = true; player.bouncing = false;
-            if (cell.crate) { // caixa marrom quebra e solta 3 gemas, que caem na fase
-              broken.add(r + ',' + c); play('crate'); player.onGround = false; player.vy = -420;
-              for (let i = 0; i < CRATE_GEMS; i++) items.push({ kind: 'gem', s: 'gem_green', x: c * TILE + 32, y: top + TILE, vx: (i - 1) * 150, vy: -560, t: 0 });
+            if (cell.crate) { // caixa marrom: quica; a quebra vale para todos (via servidor) ou local quando sozinho
+              player.onGround = false; player.vy = -420;
+              if (hooks.onCrate) { if (!pending.has(r + ',' + c)) { pending.add(r + ',' + c); play('crate'); hooks.onCrate(r, c); } }
+              else breakCrate(r, c, { sound: true });
             } else if (cell.star && !activated.has(r + ',' + c)) { // bloco "!" solta uma estrela
-              activated.add(r + ',' + c); play('pop');
-              items.push({ kind: 'star', s: 'star', x: c * TILE + 32, y: top, vx: 0, vy: -380, t: 0 });
+              if (hooks.onStarBlock) { if (!pending.has(r + ',' + c)) { pending.add(r + ',' + c); play('pop'); hooks.onStarBlock(r, c); } }
+              else activateStar(r, c, { sound: true });
             }
             if (cell.k === 'spring') { player.vy = -SPRING_SPEED; player.onGround = false; player.bouncing = true; springs.set(r + ',' + c, now); play('spring'); }
             break;
@@ -300,6 +328,7 @@ const Game = (() => {
       if (it.vy > 0 && under && (under.k === 'solid' || under.k === 'oneway')) { it.y = r * TILE; it.vy = 0; it.vx *= 0.6; if (Math.abs(it.vx) < 8) it.vx = 0; }
       if (it.t > 0.35 && Math.abs(it.x - player.x) < HW + 24 && it.y > player.y - BH - 8 && it.y - 56 < player.y) {
         it.taken = true;
+        if (hooks.onTake) hooks.onTake(it.id);
         if (it.kind === 'star') { player.dashes += STAR_DASHES; player.popText = `+${STAR_DASHES} 💨 dash`; player.popUntil = 1.6; play('star'); }
         else { player.coins += GEM_VALUE[it.s] || 1; play('gem'); }
       }
@@ -422,7 +451,11 @@ const Game = (() => {
   function render() {
     drawBackground(); drawLevel(); drawItems(); drawEnemies();
     const t = performance.now() / 1000;
-    for (const r of remote.values()) drawCharacter(r.x, r.y, r.f, charSprite(r.color, r.a, t), r.nick, 0.92);
+    for (const r of remote.values()) {
+      const hurtFor = r.hurtAt ? (performance.now() - r.hurtAt) / 1000 : 99;
+      const blink = hurtFor < HURT_INVULN && Math.floor(hurtFor * 12) % 2 === 0;
+      drawCharacter(r.x, r.y, r.f, charSprite(r.color, r.a, t), r.nick, blink ? 0.35 : 0.92);
+    }
     const anim = player.hitUntil > 0 ? 'h' : (!player.onGround || player.dashTime > 0) ? 'j' : player.vx !== 0 ? 'w' : 'i';
     const blink = player.invuln > 0 && Math.floor(player.animTime * 12) % 2 === 0;
     drawCharacter(player.x, player.y, player.facing, charSprite(player.color, anim, player.animTime), player.nick, blink ? 0.35 : 1);
@@ -474,7 +507,8 @@ const Game = (() => {
     remote.clear();
     clockOffset = opts.serverNow - Date.now();
     startAt = opts.startAt;
-    hooks = { onState: opts.onState, onFinish: opts.onFinish };
+    hooks = { onState: opts.onState, onFinish: opts.onFinish, onCrate: opts.onCrate, onStarBlock: opts.onStarBlock, onTake: opts.onTake };
+    pending.clear();
     Object.assign(player, { x: level.spawnX, y: level.spawnY, vx: 0, vy: 0, facing: 1, onGround: true, coyote: 0, jumpBuffer: 0, bouncing: false, dashes: DASH_CHARGES, dashTime: 0, dashDir: 1, coins: 0, invuln: 0, hitUntil: 0, lossUntil: 0, lossText: '', popUntil: 0, popText: '', finished: false, color: COLORS.includes(opts.color) ? opts.color : 'green', nick: opts.nick || '' });
     camera.x = 0; camera.y = 0; frozen = false; lastSent = ''; lastTick = 99;
     buildBackground(level.bg);
@@ -495,7 +529,7 @@ const Game = (() => {
     for (const p of list) {
       seen.add(p.peer);
       const cur = remote.get(p.peer);
-      if (cur) Object.assign(cur, { tx: p.x, ty: p.y, f: p.f, a: p.a, color: p.color, nick: p.nick });
+      if (cur) { if (p.a === 'h' && cur.a !== 'h') cur.hurtAt = performance.now(); Object.assign(cur, { tx: p.x, ty: p.y, f: p.f, a: p.a, color: p.color, nick: p.nick }); }
       else remote.set(p.peer, { x: p.x, y: p.y, tx: p.x, ty: p.y, f: p.f, a: p.a, color: p.color, nick: p.nick });
     }
     for (const k of remote.keys()) if (!seen.has(k)) remote.delete(k);
@@ -506,6 +540,6 @@ const Game = (() => {
   // gancho para testes automatizados (node): roda a física sem canvas
   const __test = { update, player, keys, setLevel: (l, sa) => { level = l; startAt = sa; clockOffset = 0; } };
 
-  return { load, startRace, stop, setRemote, setVirtualInput, setFrozen, stats, setMuted, COLORS, W, H, __test };
+  return { load, startRace, stop, setRemote, setVirtualInput, setFrozen, stats, setMuted, breakCrate, activateStar, removeItem, applyWorld, COLORS, W, H, __test };
 })();
 if (typeof module === 'object' && module.exports) module.exports = Game;

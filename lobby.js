@@ -155,7 +155,11 @@
         if (currentRoom) sendMsg('finish', { coins });
         else showResults([{ id: 'me', nick: nick(), color: myColor, time: Math.round(time * 1000), coins }], null);
       },
+      onCrate: currentRoom ? (r, c) => sendMsg('break', { r, c }) : null,
+      onStarBlock: currentRoom ? (r, c) => sendMsg('hit', { r, c }) : null,
+      onTake: currentRoom ? (id) => sendMsg('take', { id }) : null,
     });
+    Game.applyWorld({ broken: r.broken, activated: r.activated });
     pushRemote();
     els.hudFinished.textContent = `${r.finished || 0}/${players.size + 1}`;
     setNote('');
@@ -266,6 +270,9 @@
       setNote(m.id === myId ? `Você chegou em ${m.place}º (${fmtTime(m.time)})` : `${m.nick} chegou em ${m.place}º`);
     },
     race_start(m) { if (currentRoom) beginRace(m); },
+    crate(m) { Game.breakCrate(m.r, m.c, { sound: m.by !== myId }); },
+    star_block(m) { Game.activateStar(m.r, m.c, { sound: m.by !== myId }); },
+    taken(m) { if (m.by !== myId) Game.removeItem(m.id); },
     race_end(m) { if (currentRoom) { race = m; clockOffset = m.now - Date.now(); showResults(m.results || [], m.nextAt); } },
     error(m) {
       if (m.ctx === 'join' && askingCode) { askingError = m.msg || 'Erro'; renderRooms(lastRooms); return; }
