@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="assets/ui/icons/icon-180.png">
 <meta name="theme-color" content="#cbe6ff">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Baloo+2:wght@500;600;700;800&family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700&display=swap">
 <style>
   :root {
     --sky: #cbe6ff; --sky-deep: #a9d3f7;
@@ -227,6 +227,63 @@
   .hud-right { display: flex; gap: 8px; }
   #rotate-note { position: absolute; left: 0; right: 0; top: max(72px, env(safe-area-inset-top)); text-align: center; color: #fff; opacity: .8; font-size: 14px; display: none; }
   @media (orientation: portrait) { .touch #rotate-note { display: block; } }
+
+  /* ================= Tema "jogo" ================= */
+  :root { --font-display: "Lilita One", "Fredoka", "Baloo 2", sans-serif; --font-body: "Baloo 2", "Nunito", "Segoe UI", sans-serif;
+          --bg-a: #7fd0ff; --bg-b: #4f9cf0; --bg-c: #6a5ae0; --panel-border: #2b3f6b; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg-a: #24365f; --bg-b: #1a2747; --bg-c: #2a1d55; --panel-border: #0f1a33; } }
+  :root[data-theme="dark"] { --bg-a: #24365f; --bg-b: #1a2747; --bg-c: #2a1d55; --panel-border: #0f1a33; }
+  body { font-family: var(--font-body); font-weight: 600; background: linear-gradient(160deg, var(--bg-a) 0%, var(--bg-b) 55%, var(--bg-c) 100%) fixed; }
+  body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(circle at 12% 18%, rgba(255,255,255,.35) 0 90px, transparent 91px),
+      radial-gradient(circle at 22% 12%, rgba(255,255,255,.28) 0 60px, transparent 61px),
+      radial-gradient(circle at 85% 22%, rgba(255,255,255,.25) 0 110px, transparent 111px),
+      radial-gradient(circle at 75% 30%, rgba(255,255,255,.2) 0 70px, transparent 71px),
+      radial-gradient(circle at 50% 95%, rgba(255,255,255,.18) 0 160px, transparent 161px),
+      radial-gradient(circle at 92% 80%, rgba(255,220,120,.25) 0 120px, transparent 121px); }
+  h1, h2, .hud-room, .result .place, .mode-name, .results-card h2 { font-family: var(--font-display); font-weight: 400; letter-spacing: .01em; }
+  .panel h2, .results-card h2, .hero-head h2 { font-size: 26px; color: var(--ink); text-shadow: 0 2px 0 rgba(255,255,255,.35); }
+  .masthead p { color: #fff; font-weight: 700; text-shadow: 0 2px 4px rgba(0,40,90,.35); }
+  .me label, .divider { color: #fff; text-shadow: 0 1px 3px rgba(0,40,90,.35); }
+  .field > span { color: var(--muted); }
+  .divider::before, .divider::after { background: rgba(255,255,255,.5); }
+  .panel, .hero-main, .results-card, .mode-card { border: 3px solid var(--panel-border); border-radius: 22px; box-shadow: 0 8px 0 var(--panel-border), 0 18px 30px rgba(0,30,80,.25); }
+  .panel { padding: 20px 22px; }
+  .netstatus { border: 2px solid var(--panel-border); font-family: var(--font-body); font-weight: 800; }
+  .btn { font-family: var(--font-body); font-weight: 800; letter-spacing: .01em; border-radius: 14px; border: 3px solid var(--panel-border); border-bottom-width: 7px; padding: 10px 20px;
+         background: linear-gradient(180deg, #6fe08f 0%, #3fbf6a 100%); color: #0f3d21; text-shadow: 0 1px 0 rgba(255,255,255,.35); transition: transform .06s; }
+  .btn:hover { filter: brightness(1.05); }
+  .btn:active { transform: translateY(3px); border-bottom-width: 4px; }
+  .btn.ghost { background: linear-gradient(180deg, #ffffff 0%, #e6f0fb 100%); color: var(--ink); text-shadow: none; }
+  .btn.small { padding: 7px 14px; border-bottom-width: 5px; }
+  .btn.small:active { border-bottom-width: 3px; }
+  .btn.big { border-bottom-width: 8px; }
+  .hero-btn { background: linear-gradient(180deg, #ffd85e 0%, #f3b93a 100%); color: #4a2f00; }
+  input[type=text], input[type=password] { border: 2px solid var(--panel-border); border-radius: 12px; font-family: var(--font-body); font-weight: 700; }
+  .seg { border: 2px solid var(--panel-border); border-radius: 12px; }
+  .seg label:has(input:checked) { background: var(--grass); color: var(--grass-ink); }
+  .room { border: 2px solid var(--panel-border); border-radius: 14px; background: linear-gradient(180deg, #ffffff 0%, #eef5fd 100%); box-shadow: 0 4px 0 var(--panel-border); }
+  .badge { border: 2px solid var(--panel-border); font-family: var(--font-body); font-weight: 800; }
+  .note { border: 2px dashed var(--panel-border); }
+  /* editor de personagem */
+  #heroscreen .hero-head h2 { color: #fff; font-size: 34px; text-shadow: 0 3px 0 rgba(0,40,90,.45); }
+  #hero-preview { border: 3px solid var(--panel-border); border-radius: 22px; box-shadow: 0 8px 0 var(--panel-border), 0 18px 30px rgba(0,30,80,.25); }
+  .hero-tab { font-family: var(--font-body); font-weight: 800; border: 2px solid var(--panel-border); border-radius: 12px; padding: 6px 12px; background: linear-gradient(180deg, #ffffff 0%, #e6f0fb 100%); color: var(--ink); }
+  .hero-tab.active { background: linear-gradient(180deg, #6fe08f 0%, #3fbf6a 100%); color: #0f3d21; border-color: var(--panel-border); }
+  .hero-cell { border: 2px solid var(--line); border-radius: 12px; background: linear-gradient(180deg, #ffffff 0%, #eef5fd 100%); }
+  .hero-cell.selected { border-color: var(--panel-border); box-shadow: 0 0 0 3px #6fe08f; }
+  .hero-item-name { color: var(--ink); font-weight: 800; }
+  /* HUD e placar */
+  .hud-room { font-size: 24px; color: #fff; text-shadow: 0 2px 0 rgba(0,40,90,.45); }
+  .hud-players, .hud-stat, .hud-code { color: #fff; text-shadow: 0 1px 3px rgba(0,40,90,.4); }
+  .hud-note { color: #fff8c2; text-shadow: 0 1px 3px rgba(0,40,90,.5); }
+  kbd { border: 2px solid var(--panel-border); }
+  .hint, .credit { color: #eaf3ff; text-shadow: 0 1px 3px rgba(0,40,90,.4); }
+  .result { border: 2px solid var(--line); border-radius: 12px; }
+  .result.me { border-color: var(--panel-border); outline: none; box-shadow: 0 0 0 3px #6fe08f; }
+  .mode { border: 3px solid var(--panel-border); border-radius: 18px; box-shadow: 0 6px 0 var(--panel-border); }
+  .mode:hover, .mode:focus-visible { transform: translateY(-3px); box-shadow: 0 9px 0 var(--panel-border), 0 18px 30px rgba(0,30,80,.25); border-color: var(--panel-border); }
 </style>
 </head>
 <body>
@@ -388,13 +445,13 @@
     </div>
   </div>
 
-<script src="config.js?v=60478b8"></script>
-<script src="level.js?v=60478b8"></script>
-<script src="hero.js?v=60478b8"></script>
-<script src="heroeditor.js?v=60478b8"></script>
-<script src="game.js?v=60478b8"></script>
-<script src="music.js?v=60478b8"></script>
-<script src="lobby.js?v=60478b8"></script>
-<script src="touch.js?v=60478b8"></script>
+<script src="config.js?v=d8d955d"></script>
+<script src="level.js?v=d8d955d"></script>
+<script src="hero.js?v=d8d955d"></script>
+<script src="heroeditor.js?v=d8d955d"></script>
+<script src="game.js?v=d8d955d"></script>
+<script src="music.js?v=d8d955d"></script>
+<script src="lobby.js?v=d8d955d"></script>
+<script src="touch.js?v=d8d955d"></script>
 </body>
 </html>
