@@ -11,6 +11,7 @@
   const TILE = 16, COLS = 26, ROWS = 16;
   // quantidade de sprites por categoria (assets/retro/index.json) — o cliente/servidor só precisam do índice
   const COUNTS = { tree: 20, bush: 29, rock: 22, tuft: 18, flower: 59 };
+  const BIOMES = ['forest', 'autumn', 'winter', 'mystic', 'desert']; // um por arena; os objetos vêm só dele
 
   function mulberry32(seed) {
     let a = seed >>> 0;
@@ -23,10 +24,12 @@
     };
   }
 
-  function build(seed, counts) {
+  function build(seed, countsFor) {
     const rnd = mulberry32(seed);
     const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
     const chance = (p) => rnd() < p;
+    const biome = BIOMES[Math.floor(rnd() * BIOMES.length)];
+    const counts = Object.assign({}, COUNTS, (countsFor && countsFor(biome)) || {});
     const ground = Array.from({ length: ROWS }, () => Array(COLS).fill('g'));
     const blocked = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
     const objects = [];
@@ -84,13 +87,13 @@
       if (spawns.length >= 12) break;
     }
     if (spawns.length < 4) return null;
-    return { seed, tile: TILE, cols: COLS, rows: ROWS, width: COLS * TILE, height: ROWS * TILE, ground, blocked, objects, spawns };
+    return { seed, biome, tile: TILE, cols: COLS, rows: ROWS, width: COLS * TILE, height: ROWS * TILE, ground, blocked, objects, spawns };
   }
 
-  function generate(seed, counts) {
-    counts = counts || COUNTS;
-    for (let k = 0; k < 20; k++) { const l = build((seed + k * 7919) >>> 0, counts); if (l) return l; }
-    return build(seed >>> 0, counts) || build(1, counts);
+  // countsFor(biome) → { tree, bush, ... } (quantidade de sprites por categoria naquele bioma); só afeta os idx
+  function generate(seed, countsFor) {
+    for (let k = 0; k < 20; k++) { const l = build((seed + k * 7919) >>> 0, countsFor); if (l) return l; }
+    return build(seed >>> 0, countsFor) || build(1, countsFor);
   }
-  return { generate, TILE, COLS, ROWS, COUNTS };
+  return { generate, TILE, COLS, ROWS, COUNTS, BIOMES };
 });

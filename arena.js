@@ -7,6 +7,7 @@ const Arena = (() => {
   const SPEED = 230, MAX_HP = 3;
   const ATTACK_TIME = 0.34, ATTACK_HIT_AT = 0.12, ATTACK_CD = 0.55, ATTACK_RANGE = 72, ATTACK_HALF_H = 40;
   const HIT_INVULN = 1.0, KNOCKBACK = 300, RADIUS = 11; // raio da caixa de colisão nos pés
+  const DASH_SPEED = 720, DASH_TIME = 0.18, DASH_CD = 0.6;    // dash sem limite de usos, com um intervalo curto entre eles
 
   let canvas, ctx, loaded = null;
   let atlas = null, retro = null;                 // imagem do atlas + índice (tiles/objetos)
@@ -26,17 +27,19 @@ const Arena = (() => {
   // ---------- input ----------
   const keys = new Set();
   const ATTACK_KEYS = ['Space', 'KeyJ', 'KeyK', 'Enter'];
-  let attackPressed = false;
+  const DASH_KEYS = ['ShiftLeft', 'ShiftRight'];
+  let attackPressed = false, dashPressed = false;
   function onKeyDown(e) {
     if (e.target && e.target.tagName === 'INPUT') return;
     if (ATTACK_KEYS.includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
     if (ATTACK_KEYS.includes(e.code) && !keys.has(e.code)) attackPressed = true;
+    if (DASH_KEYS.includes(e.code) && !keys.has(e.code)) { dashPressed = true; e.preventDefault(); }
     keys.add(e.code);
   }
   function onKeyUp(e) { keys.delete(e.code); }
   function onBlur() { keys.clear(); }
   const virt = { left: false, right: false, up: false, down: false, jump: false, dash: false };
-  function setVirtualInput(p) { if (p.jump && !virt.jump) attackPressed = true; Object.assign(virt, p); }
+  function setVirtualInput(p) { if (p.jump && !virt.jump) attackPressed = true; if (p.dash && !virt.dash) dashPressed = true; Object.assign(virt, p); }
   const axis = () => ({
     x: (virt.right || keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0) - (virt.left || keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0),
     y: (virt.down || keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0) - (virt.up || keys.has('ArrowUp') || keys.has('KeyW') ? 1 : 0),
@@ -56,14 +59,20 @@ const Arena = (() => {
     const t = retro.tiles;
     for (let r = 0; r < level.rows; r++) for (let c = 0; c < level.cols; c++) {
       const k = level.ground[r][c];
+      const groundTile = level.biome === 'winter' ? t.snow : level.biome === 'desert' ? t.sand : t.grass;
+      const pathTile = level.biome === 'desert' ? t.grass : t.dirt;
       if (k === 'w') drawTile(g, t.water, c * TS, r * TS, (c % 3) * TILE, (r % 3) * TILE);
-      else drawTile(g, k === 'd' ? t.dirt : t.grass, c * TS, r * TS);
+      else drawTile(g, k === 'd' ? pathTile : groundTile, c * TS, r * TS);
     }
     // decoração no chão
     for (const o of level.objects) if (o.deco) drawObject(g, o, 0, 0);
   }
   function drawObject(g, o, camX, camY) {
-    const spr = retro.objects[o.kind][o.idx % retro.objects[o.kind].length];
+    const bm = (retro.biomes && retro.biomes[level.biome]) || retro.objects;
+    let list = bm[o.kind] || [];
+    if (!list.length) list = bm.bush && bm.bush.length ? bm.bush : retro.objects[o.kind]; // deserto: cactos no lugar de árvores
+    if (!list.length) return;
+    const spr = list[o.idx % list.length];
     // âncora: base centrada no tile de apoio (linha ty+th-1)
     const bx = (o.tx + o.tw / 2) * TS, by = (o.ty + o.th) * TS;
     g.drawImage(atlas, spr.x, spr.y, spr.w, spr.h, Math.round(bx - spr.w * S / 2 - camX), Math.round(by - spr.h * S - camY), spr.w * S, spr.h * S);
@@ -94,9 +103,18 @@ const Arena = (() => {
       }
       if (player.attackT >= ATTACK_TIME) player.attackT = -1;
     }
+    // dash
+    player.dashCd = Math.max(0, (player.dashCd || 0) - dt);
+    if (dashPressed && active && player.dashCd <= 0 && player.attackT < 0) {
+      const len = Math.hypot(vx, vy); const dx = len ? vx / len : player.facing, dy = len ? vy / len : 0;
+      player.dashT = DASH_TIME; player.dashDx = dx; player.dashDy = dy; player.dashCd = DASH_CD; play('bump');
+    }
+    dashPressed = false;
+    if (player.dashT > 0) { player.dashT -= dt; vx = player.dashDx; vy = player.dashDy; }
     // knockback decai
     player.kx *= Math.pow(0.02, dt); player.ky *= Math.pow(0.02, dt);
-    const spd = player.attackT >= 0 ? SPEED * 0.4 : SPEED;
+    const spd = player.dashT > 0 ? DASH_SPEED : player.attackT >= 0 ? SPEED * 0.4 : SPEED;
+    player.vx = vx; player.vy = vy;
     const mx = vx * spd * dt + player.kx * dt, my = vy * spd * dt + player.ky * dt;
     if (!collides(player.x + mx, player.y)) player.x += mx;
     if (!collides(player.x, player.y + my)) player.y += my;
@@ -122,7 +140,8 @@ const Arena = (() => {
     if (!p.alive) return 'd';
     if (p.hurtT > 0) return 'h';
     if (p.attackT >= 0) return 'a';
-    return (p.vx || p.vy || Math.abs(p.mx || 0) > 0) ? 'w' : 'i';
+    if (p.dashT > 0) return 'w';
+    return (p.vx || p.vy) ? 'w' : 'i';
   }
 
   // ---------- render ----------
@@ -188,15 +207,14 @@ const Arena = (() => {
   }
   // { seed, startAt, serverNow, clockOffset, id, hero, nick, hp, alive, spawn:{x,y} (px do mapa em 1×), onState, onAttack, onHit }
   function start(opts) {
-    const counts = Object.fromEntries(Object.entries(retro.objects).map(([k, v]) => [k, v.length]));
-    level = ArenaLevel.generate(opts.seed, counts);
+    level = ArenaLevel.generate(opts.seed, (bm) => Object.fromEntries(Object.entries((retro.biomes && retro.biomes[bm]) || retro.objects).map(([k, v]) => [k, v.length])));
     prerenderGround();
     remote.clear(); hitSent.clear();
     clockOffset = Number.isFinite(opts.clockOffset) ? opts.clockOffset : opts.serverNow - Date.now();
     startAt = opts.startAt;
     hooks = { onState: opts.onState, onAttack: opts.onAttack, onHit: opts.onHit };
     const sp = opts.spawn || level.spawns[0];
-    Object.assign(player, { id: opts.id || '', x: sp.x * S, y: sp.y * S, vx: 0, vy: 0, facing: 1, hp: opts.hp == null ? MAX_HP : opts.hp, alive: opts.alive !== false, attackT: -1, cd: 0, invuln: 0, hurtT: 0, kx: 0, ky: 0, hero: opts.hero ? Hero.decode(opts.hero) : null, nick: opts.nick || '', animTime: 0 });
+    Object.assign(player, { id: opts.id || '', x: sp.x * S, y: sp.y * S, vx: 0, vy: 0, facing: 1, hp: opts.hp == null ? MAX_HP : opts.hp, alive: opts.alive !== false, attackT: -1, cd: 0, invuln: 0, hurtT: 0, kx: 0, ky: 0, hero: opts.hero ? Hero.decode(opts.hero) : null, nick: opts.nick || '', animTime: 0, dashT: 0, dashCd: 0, dashDx: 1, dashDy: 0 });
     camera.x = Math.max(0, Math.min(level.width * S - W, player.x - W / 2)); camera.y = Math.max(0, Math.min(level.height * S - H, player.y - H / 2));
     frozen = false; lastSent = ''; lastTick = 99;
     if (!running) {
@@ -234,7 +252,7 @@ const Arena = (() => {
     }
   }
   function remoteAttack(id) { const r = remote.get(id); if (r) { r.attackT = 0; r.a = 'a'; } }
-  const stats = () => ({ time: now, hp: player.hp, alive: player.alive, dashes: 0, dashMax: 0, coins: 0, boost: 0, finished: false });
+  const stats = () => ({ time: now, hp: player.hp, alive: player.alive, dashes: 4, dashMax: 4, coins: 0, boost: 0, finished: false });
   function setMuted(v) { muted = v; }
   return { load, start, stop, setRemote, setVirtualInput, setFrozen, setClockOffset, applyDamage, remoteAttack, stats, setMuted, MAX_HP, S, W, H };
 })();
