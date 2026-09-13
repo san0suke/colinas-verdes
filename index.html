@@ -152,8 +152,11 @@
   #touch-ui { display: none; }
   .touch #touch-ui { display: block; position: fixed; inset: 0; pointer-events: none; }
   #touch-ui > * { pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+  /* toda a metade esquerda recebe o toque; a base do joystick aparece onde o dedo encostou */
+  #stick-zone { position: absolute; left: 0; top: 0; bottom: 0; width: 50%; }
   #stick { position: absolute; left: max(24px, env(safe-area-inset-left)); bottom: max(24px, env(safe-area-inset-bottom)); width: 140px; height: 140px; border-radius: 50%;
-           background: rgba(255,255,255,.18); border: 2px solid rgba(255,255,255,.35); }
+           background: rgba(255,255,255,.18); border: 2px solid rgba(255,255,255,.35); pointer-events: none; transition: opacity .15s; }
+  #stick.active { opacity: .9; }
   #knob { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%;
           background: rgba(255,255,255,.75); box-shadow: 0 4px 12px rgba(0,0,0,.3); pointer-events: none; }
   #jump { position: absolute; right: max(28px, env(safe-area-inset-right)); bottom: max(28px, env(safe-area-inset-bottom)); width: 96px; height: 96px; border-radius: 50%;
@@ -254,7 +257,8 @@
   </div>
   <div class="credit">Assets: Kenney · New Platformer Pack (CC0)</div>
   <div id="touch-ui">
-    <div id="stick" aria-label="Joystick"><div id="knob"></div></div>
+    <div id="stick-zone" aria-label="Área do joystick (metade esquerda da tela)"></div>
+    <div id="stick"><div id="knob"></div></div>
     <button type="button" id="jump" aria-label="Pular">PULAR</button>
     <button type="button" id="touch-leave" class="btn ghost small">Sair</button>
     <div id="rotate-note">Gire o celular para jogar na horizontal</div>
@@ -269,10 +273,10 @@
   </div>
 </section>
 
-<script src="config.js?v=b2314ab"></script>
-<script src="level.js?v=b2314ab"></script>
-<script src="game.js?v=b2314ab"></script>
-<script src="lobby.js?v=b2314ab"></script>
-<script src="touch.js?v=b2314ab"></script>
+<script src="config.js?v=3357a02"></script>
+<script src="level.js?v=3357a02"></script>
+<script src="game.js?v=3357a02"></script>
+<script src="lobby.js?v=3357a02"></script>
+<script src="touch.js?v=3357a02"></script>
 </body>
 </html>

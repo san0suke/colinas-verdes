@@ -1,10 +1,11 @@
 // Controles de toque (celular): joystick à esquerda, botão de pular à direita, sair no canto.
 (() => {
+  const zone = document.getElementById('stick-zone');
   const stick = document.getElementById('stick');
   const knob = document.getElementById('knob');
   const jump = document.getElementById('jump');
   const leave = document.getElementById('touch-leave');
-  if (!stick || !jump) return;
+  if (!zone || !stick || !jump) return;
 
   const RADIUS = 44;        // curso máximo do knob (px)
   const DEAD = 0.25;        // zona morta (fração do raio)
@@ -26,22 +27,27 @@
     if (e && e.pointerId !== pointerId) return;
     pointerId = null;
     moveKnob(0, 0);
+    stick.classList.remove('active');
+    stick.style.left = ''; stick.style.top = ''; stick.style.bottom = ''; // volta ao canto
     Game.setVirtualInput({ left: false, right: false });
   }
 
-  stick.addEventListener('pointerdown', (e) => {
+  // O joystick "nasce" onde o dedo encosta, em qualquer ponto da metade esquerda da tela
+  zone.addEventListener('pointerdown', (e) => {
     if (pointerId !== null) return;
     pointerId = e.pointerId;
+    cx = e.clientX; cy = e.clientY;
     const r = stick.getBoundingClientRect();
-    cx = r.left + r.width / 2; cy = r.top + r.height / 2;
-    stick.setPointerCapture(e.pointerId);
+    stick.style.left = (cx - r.width / 2) + 'px'; stick.style.top = (cy - r.height / 2) + 'px'; stick.style.bottom = 'auto';
+    stick.classList.add('active');
+    zone.setPointerCapture(e.pointerId);
     onMove(e);
     e.preventDefault();
   });
-  stick.addEventListener('pointermove', onMove);
-  stick.addEventListener('pointerup', release);
-  stick.addEventListener('pointercancel', release);
-  stick.addEventListener('lostpointercapture', release);
+  zone.addEventListener('pointermove', onMove);
+  zone.addEventListener('pointerup', release);
+  zone.addEventListener('pointercancel', release);
+  zone.addEventListener('lostpointercapture', release);
 
   const press = (e) => { Game.setVirtualInput({ jump: true }); e.preventDefault(); };
   const unpress = () => Game.setVirtualInput({ jump: false });

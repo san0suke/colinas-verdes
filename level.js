@@ -189,7 +189,7 @@
       const c0 = x + ri(1, w - n - 1);
       for (let c = c0; c < c0 + n; c++) {
         set(gt - 2, c, pick(['block_coin', 'block_exclamation', 'brick_brown', 'bricks_grey', 'block_empty']), 'solid');
-        if (chance(0.7)) set(gt - 3, c, chance(0.2) ? pick(['gem_blue', 'gem_green', 'gem_red', 'gem_yellow']) : 'coin_gold', 'coin');
+        if (chance(0.7)) set(gt - 3, c, chance(0.2) ? pick(['gem_green', 'gem_blue', 'gem_red']) : 'coin_gold', 'coin');
       }
       if (chance(0.4)) walker(x + 1, x + w - 2, gt);
       x += w;
@@ -201,7 +201,7 @@
       set(gt - 1, x + 2, 'spring', 'spring');
       const hi = Math.max(1, gt - 5);
       platform(x + 3, x + 5, hi, true);
-      coinsRow(x + 3, x + 5, hi - 1, pick(['gem_blue', 'gem_green', 'gem_red', 'gem_yellow']));
+      coinsRow(x + 3, x + 5, hi - 1, pick(['gem_green', 'gem_blue', 'gem_red']));
       if (difficulty > 0.35) { for (let r = gt - 1; r >= gt - 3; r--) set(r, x + 4, 'bricks_brown', 'solid'); } // muro alto: só passa com a mola
       x += w;
     }
