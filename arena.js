@@ -76,7 +76,7 @@ const Arena = (() => {
     const bob = Math.sin(t * 3 + p.t) * 4, sx = Math.round(p.x - camera.x), sy = Math.round(p.y - camera.y);
     ctx.save();
     ctx.globalAlpha = 0.25; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(sx, sy, 16, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
-    if (p.kind === 'heart') drawHeart(sx - 16, sy - 40 + bob, 32, true);
+    if (p.kind === 'heart') drawHeart(sx - 22, sy - 52 + bob, 44, true);
     else if (powersImg) { const fr = Math.floor(t * 6 + p.t) % 3; ctx.drawImage(powersImg, fr * 16, POWER_ROW[p.kind] * 32, 16, 32, sx - 24, sy - 88 + bob, 48, 96); }
     ctx.restore();
   }
@@ -444,7 +444,6 @@ const Arena = (() => {
     remote.clear(); hitSent.clear(); shots.length = 0; puffs.length = 0;
     powers.clear(); pickupAsked.clear(); for (const k in eff) eff[k] = 0; frozenT = 0; pull = null; player.shield = false;
     for (const p of opts.powers || []) addPower(p);
-    if (opts.demoPowers) ['heart', 'shield', 'fury', 'triple', 'ice', 'boots', 'invis', 'magnet'].forEach((kind, i) => addPower({ id: 900 + i, kind, x: player.x + 90 + i * 70, y: player.y, until: 0 }));
     autoFire = !!opts.autoFire;
     clockOffset = Number.isFinite(opts.clockOffset) ? opts.clockOffset : opts.serverNow - Date.now();
     startAt = opts.startAt;
@@ -453,6 +452,7 @@ const Arena = (() => {
     const sp = opts.spawn || level.spawns[0];
     Object.assign(player, { id: opts.id || '', x: sp.x * S, y: sp.y * S, vx: 0, vy: 0, facing: 1, hp: opts.hp == null ? MAX_HP : opts.hp, alive: opts.alive !== false, attackT: -1, cd: 0, invuln: 0, hurtT: 0, kx: 0, ky: 0, hero: opts.hero ? Hero.decode(opts.hero) : null, nick: opts.nick || '', animTime: 0, dashT: 0, dashCd: 0, dashDx: 1, dashDy: 0 });
     camera.x = Math.max(0, Math.min(level.width * S - W, player.x - W / 2)); camera.y = Math.max(0, Math.min(level.height * S - H, player.y - H / 2));
+    if (opts.demoPowers) ['heart', 'shield', 'fury', 'triple', 'ice', 'boots', 'invis', 'magnet'].forEach((kind, i) => addPower({ id: 900 + i, kind, x: player.x + 90 + i * 70, y: player.y + 20, until: 0 }));
     frozen = false; lastSent = ''; lastTick = 99;
     if (hooks.onState) { const s = { x: Math.round(player.x), y: Math.round(player.y), f: player.facing, a: player.alive ? 'i' : 'd' }; lastSent = `${s.x},${s.y},${s.f},${s.a}`; hooks.onState(s); }
     if (!running) {
