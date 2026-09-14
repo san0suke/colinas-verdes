@@ -19,7 +19,8 @@ const Arena = (() => {
   let running = false, raf = 0, last = 0, frozen = false, overview = false;
   let startAt = 0, clockOffset = 0, now = 0, hooks = {}, lastSent = '', hitSent = new Set();
   // ---- armas à distância: cajados/varinhas lançam magia do seu elemento, arcos atiram flechas ----
-  const SHOT_SPEED = 540, SHOT_LIFE = 1.0, SHOT_CD = 0.6, SHOT_R = 26; // px/s, s de vida, recarga, raio de acerto
+  const SHOT_SPEED = 540, SHOT_LIFE = 1.0, SHOT_CD = 1.2, SHOT_R = 26; // px/s, s de vida, recarga (maior que qualquer arma de perto), raio de acerto
+  const SHOT_WINDUP = 0.4, SHOT_TIME = 0.6;                                 // preparação até o projétil sair; duração do gesto
   const ELEMENTS = [
     ['fire', /^(FireWand|FlameStaff|RedWand|RedStick)$/], ['ice', /^(BlueWand|BlueStick)$/], ['water', /^WaterWand$/], ['heart', /^AmurWand$/],
     ['nature', /^(NatureWand|GreenWand|CurveBranch|ArchStaff)$/], ['storm', /^StormStaff$/], ['dark', /^(NecromancerStaff|SkullWand|GoldenSkullWand|ElderStaff)$/],
@@ -225,19 +226,22 @@ const Arena = (() => {
     player.cd = Math.max(0, player.cd - dt);
     if (attackPressed && active && player.cd <= 0 && player.attackT < 0) {
       const kind = weaponKind(player.hero);
-      if (kind) { // à distância: na direção do movimento; parado, em linha reta para onde olha
-        const len = Math.hypot(vx, vy); const dx = len ? vx / len : player.facing, dy = len ? vy / len : 0;
-        if (dx) player.facing = dx > 0 ? 1 : -1;
-        const sx = player.x + dx * 22, sy = player.y - 22 + dy * 12;
-        spawnShot(sx, sy, dx, dy, kind, true);
-        player.attackT = 0; player.cd = SHOT_CD; player.ranged = true; play(kind === 'arrow' ? 'swing' : 'cast');
-        if (hooks.onShoot) hooks.onShoot({ x: Math.round(sx), y: Math.round(sy), dx: +dx.toFixed(3), dy: +dy.toFixed(3), kind });
+      if (kind) { // à distância: começa a preparação; o projétil sai depois de SHOT_WINDUP (ver abaixo)
+        player.attackT = 0; player.cd = SHOT_CD; player.ranged = true; player.shotKind = kind; player.shotFired = false; play(kind === 'arrow' ? 'swing' : 'cast'); if (hooks.onAttack) hooks.onAttack();
       } else { const ms = meleeStats(player.hero); player.attackT = 0; player.cd = ms.cd; player.range = ms.range; player.atkTime = ms.time; player.ranged = false; hitSent.clear(); play('swing'); if (hooks.onAttack) hooks.onAttack(); }
     }
     attackPressed = false;
     updateShots(dt);
     if (player.attackT >= 0) {
       player.attackT += dt;
+      if (player.ranged && !player.shotFired && player.attackT >= SHOT_WINDUP && player.alive) { // solta o projétil: na direção do movimento; parado, para onde olha
+        player.shotFired = true;
+        const len = Math.hypot(vx, vy); const dx = len ? vx / len : player.facing, dy = len ? vy / len : 0;
+        if (dx) player.facing = dx > 0 ? 1 : -1;
+        const sx = player.x + dx * 22, sy = player.y - 22 + dy * 12, kind = player.shotKind || 'magic';
+        spawnShot(sx, sy, dx, dy, kind, true);
+        if (hooks.onShoot) hooks.onShoot({ x: Math.round(sx), y: Math.round(sy), dx: +dx.toFixed(3), dy: +dy.toFixed(3), kind });
+      }
       if (player.attackT >= ATTACK_HIT_AT && !player.ranged) { // golpe: retângulo à frente
         const R = player.range || ATTACK_RANGE, x0 = player.facing > 0 ? player.x : player.x - R, x1 = player.facing > 0 ? player.x + R : player.x;
         for (const [id, r] of remote) {
@@ -245,7 +249,7 @@ const Arena = (() => {
           if (r.x + 14 > x0 && r.x - 14 < x1 && Math.abs((r.y - 20) - (player.y - 20)) < ATTACK_HALF_H) { hitSent.add(id); if (hooks.onHit) hooks.onHit(id); }
         }
       }
-      if (player.attackT >= (player.ranged ? ATTACK_TIME : (player.atkTime || ATTACK_TIME))) player.attackT = -1;
+      if (player.attackT >= (player.ranged ? SHOT_TIME : (player.atkTime || ATTACK_TIME))) player.attackT = -1;
     }
     // dash
     player.dashCd = Math.max(0, (player.dashCd || 0) - dt);
@@ -416,7 +420,7 @@ const Arena = (() => {
     }
   }
   function remoteAttack(id) { const r = remote.get(id); if (r) { r.attackT = 0; r.a = 'a'; } }
-  function remoteShoot(m) { const r = remote.get(m.id); if (r) { r.attackT = 0; r.a = 'a'; if (m.dx) r.facing = m.dx > 0 ? 1 : -1; } spawnShot(+m.x, +m.y, +m.dx, +m.dy, String(m.kind || 'magic'), false); }
+  function remoteShoot(m) { const r = remote.get(m.id); if (r) { if (r.attackT < 0) r.attackT = 0; r.a = 'a'; if (m.dx) r.facing = m.dx > 0 ? 1 : -1; } spawnShot(+m.x, +m.y, +m.dx, +m.dy, String(m.kind || 'magic'), false); }
   const stats = () => ({ time: now, hp: player.hp, alive: player.alive, dashes: 4, dashMax: 4, coins: 0, boost: 0, finished: false, arena: level ? level.name : '' });
   function setMuted(v) { muted = v; }
   function setOverview(v) { overview = !!v; }
