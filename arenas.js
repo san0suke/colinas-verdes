@@ -276,7 +276,14 @@ kkkkkkkkkkkkkkkkkkkkkkkkkk`),
     const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
     const order = free.slice().sort(() => rnd() - 0.5);
     for (const [r, c] of order) { const x = c * TILE + TILE / 2, y = r * TILE + TILE / 2; if (spawns.every((s) => Math.hypot(s.x - x, s.y - y) >= 5 * TILE)) spawns.push({ x, y }); if (spawns.length >= 12) break; }
-    return { index: i, name: a.name, theme: a.theme, tile: TILE, cols, rows: rowsN, width: cols * TILE, height: rowsN * TILE, ground, blocked, objects, spawns, keys: K };
+    // pontos de poder: célula livre (sem bloqueio, água ou lava) mais próxima do ponto desejado
+    const POWER_POINTS = {"village":[[13,5],[13,11],[5,10],[21,5]],"forest":[[12,7],[5,5],[20,10],[13,13]],"desert":[[12,8],[5,5],[20,4],[8,13]],"winter":[[13,4],[13,11],[4,10],[21,6]],"dungeon":[[13,7],[8,7],[16,11],[4,8]]};
+    const okCell = (r, c) => r >= 1 && c >= 1 && r < rowsN - 1 && c < cols - 1 && !blocked[r][c] && !'wlf'.includes(ground[r][c]);
+    const powerSpots = (POWER_POINTS[a.theme] || []).map(([tx, ty]) => {
+      let best = null; for (let r = 0; r < rowsN; r++) for (let c = 0; c < cols; c++) if (okCell(r, c)) { const d = Math.hypot(c - tx, r - ty); if (!best || d < best.d) best = { d, x: c * TILE + TILE / 2, y: r * TILE + TILE }; }
+      return best ? { x: best.x, y: best.y } : null;
+    }).filter(Boolean);
+    return { index: i, name: a.name, theme: a.theme, tile: TILE, cols, rows: rowsN, width: cols * TILE, height: rowsN * TILE, ground, blocked, objects, spawns, powerSpots, keys: K };
   }
   return { build, count: ARENAS.length, keys: K, TILE };
 });

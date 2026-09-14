@@ -225,6 +225,8 @@
       onHit: (id, ranged) => sendMsg('hit', { target: id, ranged: !!ranged }),
       onHazard: (kind) => sendMsg('hazard', { kind }),
       onShoot: (s) => sendMsg('shoot', s),
+      onPickup: (id) => sendMsg('pickup', { id }),
+      powers: a.powers || [],
     });
     pushRemote();
     setNote('Arena: ' + (Arena.stats().arena || ''));
@@ -352,6 +354,12 @@
     arena_end(m) { if (currentRoom) { race = m; if (!clockSynced) clockOffset = m.now - Date.now(); showResults(m.results || [], m.nextAt); } },
     player_attack(m) { Arena.remoteAttack(m.id); },
     player_shoot(m) { Arena.remoteShoot(m); },
+    power_spawn(m) { Arena.addPower(m); },
+    power_gone(m) { Arena.removePower(m.id); },
+    power_taken(m) { const p = players.get(m.by); if (p && m.hp != null) p.hp = m.hp; Arena.powerTaken(m); },
+    freeze(m) { Arena.freeze(m); },
+    pull(m) { Arena.pull(m); },
+    shield_break(m) { Arena.shieldBreak(m); },
     damage(m) { const p = players.get(m.id); if (p) { p.hp = m.hp; if (m.hp <= 0) p.alive = false; } Arena.applyDamage(m); },
     eliminated(m) { const p = players.get(m.id); if (p) p.alive = false; setNote(m.id === myId ? 'Você foi eliminado' : `${(p && p.nick) || 'Alguém'} foi eliminado · ${m.alive} vivo(s)`); },
     crate(m) { Game.breakCrate(m.r, m.c, { sound: m.by !== myId }); },
@@ -454,7 +462,7 @@
     if (q.get('hero')) { show('hero'); HeroEditor.show(); } // ?hero=1 abre o editor direto (testes)
     if (q.get('arena')) { // ?arena=1&seed=N[&weapon=FireWand&shoot=1&overview=1]: arena solo para testes
       let hs = heroStr; if (q.get('weapon')) { const cfg = Hero.decode(heroStr) || Hero.random(); cfg.weapon = q.get('weapon'); hs = Hero.encode(cfg); }
-      setEngine(Arena); show('game'); Arena.start({ seed: +(q.get('seed') || 0), startAt: Date.now() + 1000, serverNow: Date.now(), id: 'me', hero: hs, nick: nick(), autoFire: !!q.get('shoot') }); if (q.get('overview')) Arena.setOverview(true);
+      setEngine(Arena); show('game'); Arena.start({ seed: +(q.get('seed') || 0), startAt: Date.now() + 1000, serverNow: Date.now(), id: 'me', hero: hs, nick: nick(), autoFire: !!q.get('shoot'), demoPowers: !!q.get('powers') }); if (q.get('overview')) Arena.setOverview(true);
     }
     if (q.get('solo')) { if (q.get('seed')) soloSeed = +q.get('seed'); enterRoom(null); if (q.get('x')) Game.__test.player.x = +q.get('x'); }
   })().catch((err) => { setStatus('Erro: ' + err.message, 'error'); console.error(err); });

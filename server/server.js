@@ -20,7 +20,11 @@ const randomRoomName = () => `${ROOM_NOUN[Math.floor(Math.random() * ROOM_NOUN.l
 const COUNTDOWN_MS = 4000;      // contagem regressiva antes da largada
 const RESULTS_MS = 5000;        // placar na tela antes da próxima corrida
 const FINISH_GRACE_MS = 15000;  // depois que o primeiro chega, os outros têm este tempo
-const ARENA_HP = 3, ARENA_RANGE = 200, ARENA_SHOT_RANGE = 700, ARENA_CD_MS = 400, ARENA_INVULN_MS = 900; // combate (px em escala 4×); projétil alcança mais
+const ARENA_HP = 3, ARENA_RANGE = 200, ARENA_SHOT_RANGE = 700, ARENA_CD_MS = 400, ARENA_FURY_CD_MS = 250, ARENA_INVULN_MS = 900; // combate (px em escala 4×); projétil alcança mais
+// poderes coletáveis: nascem em pontos fixos da arena, um por vez a cada POWER_EVERY_MS, somem em POWER_TTL_MS
+const POWER_KINDS = ['heart', 'shield', 'fury', 'triple', 'ice', 'boots', 'invis', 'magnet'];
+const POWER_DUR = { fury: 8000, triple: 10000, boots: 8000, invis: 6000 };
+const POWER_FIRST_MS = 6000, POWER_EVERY_MS = 12000, POWER_TTL_MS = 20000, POWER_MAX = 2, POWER_PICK_DIST = 110, ICE_RADIUS = 260, ICE_MS = 1500, PULL_MS = 1000;
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.txt': 'text/plain' };
 
 // ---------- estado ----------
@@ -67,11 +71,12 @@ function startRace(room, except) {
 function arenaView(room, c) {
   const a = room.arena;
   return { seed: a.seed, startAt: a.startAt, phase: a.phase, results: a.results || null, nextAt: a.nextAt || null, now: Date.now(),
-    players: [...room.players.values()].map((p) => ({ id: p.id, hp: p.hp, alive: p.alive, x: p.x, y: p.y })), spawn: c ? a.spawnOf.get(c.id) || null : null };
+    players: [...room.players.values()].map((p) => ({ id: p.id, hp: p.hp, alive: p.alive, x: p.x, y: p.y })), spawn: c ? a.spawnOf.get(c.id) || null : null,
+    powers: [...a.powers.values()].map((p) => ({ id: p.id, kind: p.kind, x: p.x, y: p.y, until: p.until })) };
 }
 function arenaSpawn(room, c) {
   const a = room.arena; const sp = a.level.spawns[a.spawnIdx++ % a.level.spawns.length];
-  a.spawnOf.set(c.id, sp); c.x = sp.x * 4; c.y = sp.y * 4; c.hp = ARENA_HP; c.alive = true; c.lastAttack = 0; c.invulnUntil = 0;
+  a.spawnOf.set(c.id, sp); c.x = sp.x * 4; c.y = sp.y * 4; c.hp = ARENA_HP; c.alive = true; c.lastAttack = 0; c.invulnUntil = 0; c.shield = false; c.furyUntil = 0;
   return sp;
 }
 function startArena(room, except) {
@@ -80,9 +85,26 @@ function startArena(room, except) {
   const prev = room.arena ? room.arena.seed : -1;
   let seed = crypto.randomInt(0, Arenas.count); if (Arenas.count > 1) while (seed === prev) seed = crypto.randomInt(0, Arenas.count);
   const level = Arenas.build(seed);
-  room.arena = { seed, level, startAt: Date.now() + COUNTDOWN_MS, phase: 'fighting', deaths: [], results: null, nextAt: null, spawnIdx: 0, spawnOf: new Map() };
+  room.arena = { seed, level, startAt: Date.now() + COUNTDOWN_MS, phase: 'fighting', deaths: [], results: null, nextAt: null, spawnIdx: 0, spawnOf: new Map(),
+    powers: new Map(), powerSeq: 1, nextPowerAt: Date.now() + COUNTDOWN_MS + POWER_FIRST_MS };
+  clearInterval(room.powerTimer); room.powerTimer = setInterval(() => tickPowers(room), 1000);
   for (const p of room.players.values()) arenaSpawn(room, p);
   for (const p of room.players.values()) if (p !== except) send(p, 'arena_start', arenaView(room, p));
+}
+// nascimento e expiração dos poderes
+function tickPowers(room) {
+  const a = room.arena; if (!a || a.phase !== 'fighting' || !rooms.has(room.code)) { clearInterval(room.powerTimer); return; }
+  const now = Date.now();
+  for (const p of [...a.powers.values()]) if (now >= p.until) { a.powers.delete(p.id); broadcastRoom(room, 'power_gone', { id: p.id }); }
+  if (a.powers.size < POWER_MAX && now >= a.nextPowerAt && room.players.size >= 1) {
+    const spots = (a.level.powerSpots || []).filter((sp) => ![...a.powers.values()].some((p) => p.x === sp.x * 4 && p.y === sp.y * 4));
+    if (spots.length) {
+      const sp = spots[crypto.randomInt(0, spots.length)], kind = POWER_KINDS[crypto.randomInt(0, POWER_KINDS.length)];
+      const p = { id: a.powerSeq++, kind, x: sp.x * 4, y: sp.y * 4, until: now + POWER_TTL_MS };
+      a.powers.set(p.id, p); broadcastRoom(room, 'power_spawn', p);
+    }
+    a.nextPowerAt = now + POWER_EVERY_MS;
+  }
 }
 function checkArenaEnd(room) {
   const a = room.arena; if (!a || a.phase !== 'fighting') return;
@@ -124,7 +146,7 @@ function leaveRoom(c, notify = true) {
   room.players.delete(c.id);
   c.room = null;
   broadcastRoom(room, 'player_leave', { id: c.id });
-  if (room.players.size === 0) { clearTimeout(room.nextTimer); if (room.race) clearTimeout(room.race.graceTimer); rooms.delete(room.code); } // a sala morre com o último jogador
+  if (room.players.size === 0) { clearTimeout(room.nextTimer); clearInterval(room.powerTimer); if (room.race) clearTimeout(room.race.graceTimer); rooms.delete(room.code); } // a sala morre com o último jogador
   else if (room.mode === 'arena') checkArenaEnd(room);
   else checkRaceEnd(room);
   if (notify) send(c, 'rooms', { rooms: publicRooms() });
@@ -232,10 +254,12 @@ const handlers = {
     const a = room.arena, now = Date.now();
     if (now < a.startAt || !c.alive) return;
     const t = room.players.get(String(m.target)); if (!t || !t.alive || t === c) return;
-    if (now - c.lastAttack < ARENA_CD_MS) return; // um golpe por vez
+    if (now - c.lastAttack < (c.furyUntil > now ? ARENA_FURY_CD_MS : ARENA_CD_MS)) return; // um golpe por vez (fúria: mais rápido)
     if (now < t.invulnUntil) return;                // alvo ainda piscando
     if (Math.hypot(t.x - c.x, t.y - c.y) > (m.ranged ? ARENA_SHOT_RANGE : ARENA_RANGE)) return; // longe demais (posições mais recentes conhecidas)
-    c.lastAttack = now; t.invulnUntil = now + ARENA_INVULN_MS;
+    c.lastAttack = now;
+    if (t.shield) { t.shield = false; t.invulnUntil = now + 400; broadcastRoom(room, 'shield_break', { id: t.id, by: c.id }); return; } // escudo absorve o golpe
+    t.invulnUntil = now + ARENA_INVULN_MS;
     t.hp = Math.max(0, (t.hp || 0) - 1);
     const d = Math.hypot(t.x - c.x, t.y - c.y) || 1;
     broadcastRoom(room, 'damage', { id: t.id, hp: t.hp, by: c.id, kx: (t.x - c.x) / d, ky: (t.y - c.y) / d });
@@ -250,9 +274,27 @@ const handlers = {
     const minGap = kind === 'water' ? 1000 : 600;
     if (now - (c.lastHazard || 0) < minGap) return;
     c.lastHazard = now;
+    if (c.shield) { c.shield = false; broadcastRoom(room, 'shield_break', { id: c.id, by: null }); return; } // escudo absorve
     c.hp = Math.max(0, (c.hp || 0) - 1);
     broadcastRoom(room, 'damage', { id: c.id, hp: c.hp, by: null, kind, kx: 0, ky: 0 });
     if (c.hp <= 0) { c.alive = false; a.deaths.push(c.id); broadcastRoom(room, 'eliminated', { id: c.id, by: null, kind, alive: [...room.players.values()].filter((p) => p.alive).length }); checkArenaEnd(room); }
+  },
+  // pegar um poder: o servidor valida a distância e aplica o efeito
+  pickup(c, m) {
+    const room = c.room; if (!room || room.mode !== 'arena' || !room.arena || room.arena.phase !== 'fighting' || !c.alive) return;
+    const a = room.arena, now = Date.now(); if (now < a.startAt) return;
+    const p = a.powers.get(Number(m.id)); if (!p) return;
+    if (Math.hypot(p.x - c.x, p.y - (c.y - 16)) > POWER_PICK_DIST) return;
+    a.powers.delete(p.id);
+    const out = { id: p.id, by: c.id, kind: p.kind, until: POWER_DUR[p.kind] ? now + POWER_DUR[p.kind] : 0 };
+    if (p.kind === 'heart') { c.hp = Math.min(ARENA_HP, (c.hp || 0) + 1); out.hp = c.hp; }
+    else if (p.kind === 'shield') c.shield = true;
+    else if (p.kind === 'fury') c.furyUntil = out.until;
+    broadcastRoom(room, 'power_taken', out);
+    if (p.kind === 'ice') { // congela quem está perto
+      const ids = [...room.players.values()].filter((t) => t !== c && t.alive && Math.hypot(t.x - c.x, t.y - c.y) <= ICE_RADIUS).map((t) => t.id);
+      broadcastRoom(room, 'freeze', { by: c.id, ids, until: now + ICE_MS, x: c.x, y: c.y });
+    } else if (p.kind === 'magnet') broadcastRoom(room, 'pull', { by: c.id, x: c.x, y: c.y, until: now + PULL_MS });
   },
   finish(c, m) {
     const room = c.room;

@@ -10,7 +10,7 @@ const Arena = (() => {
   const DASH_SPEED = 720, DASH_TIME = 0.18, DASH_CD = 0.6;    // dash sem limite de usos, com um intervalo curto entre eles
 
   let canvas, ctx, loaded = null;
-  let atlas = null, retro = null, autoImg = null, arrowImg = null, weaponLen = {};                 // imagem do atlas + índice (tiles/objetos)
+  let atlas = null, retro = null, autoImg = null, arrowImg = null, powersImg = null, weaponLen = {};                 // imagem do atlas + índice (tiles/objetos)
   let heartsImg = null, heartRects = null;        // corações do Kenney
   let level = null, ground = null;                // ground: canvas pré-renderizado do chão
   const player = { id: '', x: 0, y: 0, vx: 0, vy: 0, facing: 1, hp: MAX_HP, alive: true, attackT: -1, cd: 0, invuln: 0, hurtT: 0, kx: 0, ky: 0, hero: null, nick: '', animTime: 0, deadAt: 0 };
@@ -39,7 +39,58 @@ const Arena = (() => {
     return { range: Math.round(40 + e * 6), cd: +(0.35 + e * 0.03).toFixed(2), time: +(0.3 + e * 0.012).toFixed(2) };
   }
   const shots = [], puffs = [];
+  // ---- poderes coletáveis ----
+  const POWER_ROW = { fury: 0, shield: 1, triple: 2, ice: 3, boots: 4, invis: 5, magnet: 6 }; // linha em powers.png (3 quadros 16×32)
+  const POWER_NAME = { heart: 'Coração', shield: 'Escudo', fury: 'Fúria', triple: 'Tiro triplo', ice: 'Bomba de gelo', boots: 'Botas de vento', invis: 'Invisível', magnet: 'Ímã' };
+  const powers = new Map(); const pickupAsked = new Map(); // id → poder no chão; id → quando pedimos ao servidor
+  const eff = { fury: 0, triple: 0, boots: 0, invis: 0 }; // segundos restantes de cada efeito (do jogador local)
+  let frozenT = 0, pull = null; // congelado (s); puxão do ímã { x, y, t }
+  const leftOf = (until) => Math.max(0, (until - serverNow()) / 1000);
+  function addPower(p) { powers.set(p.id, { id: p.id, kind: p.kind, x: +p.x, y: +p.y, until: p.until, t: Math.random() * 6 }); }
+  function removePower(id) { powers.delete(id); pickupAsked.delete(id); }
+  function powerTaken(m) {
+    const p = powers.get(m.id); removePower(m.id);
+    if (p) puffs.push({ x: p.x, y: p.y - 20, kind: 'holy', t: 0 });
+    if (m.by === player.id) {
+      play('power');
+      if (m.kind === 'heart' && m.hp != null) player.hp = m.hp;
+      else if (m.kind === 'shield') player.shield = true;
+      else if (eff[m.kind] != null) eff[m.kind] = leftOf(m.until);
+    } else {
+      const r = remote.get(m.by); if (!r) return;
+      if (m.kind === 'heart' && m.hp != null) r.hp = m.hp;
+      else if (m.kind === 'shield') r.shield = true;
+      else if (m.kind === 'invis') r.invisT = leftOf(m.until);
+      else if (m.kind === 'boots') r.bootsT = leftOf(m.until);
+    }
+  }
+  function freeze(m) {
+    const ids = m.ids || [];
+    if (ids.includes(player.id)) { frozenT = leftOf(m.until); play('shield'); }
+    for (const id of ids) { const r = remote.get(id); if (r) r.frozenT = leftOf(m.until); }
+    puffs.push({ x: +m.x, y: +m.y - 22, kind: 'ice', t: 0 });
+  }
+  function pullFrom(m) { if (m.by !== player.id && player.alive) pull = { x: +m.x, y: +m.y, t: leftOf(m.until) }; puffs.push({ x: +m.x, y: +m.y - 22, kind: 'magic', t: 0 }); }
+  function shieldBreak(m) { if (m.id === player.id) { player.shield = false; play('shield'); } else { const r = remote.get(m.id); if (r) r.shield = false; } const q = m.id === player.id ? player : remote.get(m.id); if (q) puffs.push({ x: q.x, y: q.y - 22, kind: 'ice', t: 0 }); }
+  function drawPower(p, t) {
+    const bob = Math.sin(t * 3 + p.t) * 4, sx = Math.round(p.x - camera.x), sy = Math.round(p.y - camera.y);
+    ctx.save();
+    ctx.globalAlpha = 0.25; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(sx, sy, 16, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+    if (p.kind === 'heart') drawHeart(sx - 16, sy - 40 + bob, 32, true);
+    else if (powersImg) { const fr = Math.floor(t * 6 + p.t) % 3; ctx.drawImage(powersImg, fr * 16, POWER_ROW[p.kind] * 32, 16, 32, sx - 24, sy - 88 + bob, 48, 96); }
+    ctx.restore();
+  }
+  function effectLabel() { const out = []; for (const k of ['fury', 'triple', 'boots', 'invis']) if (eff[k] > 0) out.push(POWER_NAME[k] + ' ' + Math.ceil(eff[k]) + 's'); if (player.shield) out.push('Escudo'); if (frozenT > 0) out.push('Congelado!'); return out.join('  ·  '); }
   function spawnShot(x, y, dx, dy, kind, mine) { shots.push({ x, y, dx, dy, kind, mine, t: 0 }); }
+  // dispara n projéteis em leque (1 ou 3) e avisa o servidor
+  function fire(x, y, dx, dy, kind, n) {
+    const base = Math.atan2(dy, dx);
+    for (let i = 0; i < n; i++) {
+      const ang = base + (n === 3 ? (i - 1) * 0.28 : 0), ddx = Math.cos(ang), ddy = Math.sin(ang);
+      spawnShot(x, y, ddx, ddy, kind, true);
+      if (hooks.onShoot) hooks.onShoot({ x: Math.round(x), y: Math.round(y), dx: +ddx.toFixed(3), dy: +ddy.toFixed(3), kind });
+    }
+  }
   function updateShots(dt) {
     for (let i = shots.length - 1; i >= 0; i--) {
       const s = shots[i]; s.t += dt; s.x += s.dx * SHOT_SPEED * dt; s.y += s.dy * SHOT_SPEED * dt;
@@ -80,7 +131,7 @@ const Arena = (() => {
   let lavaT = 0; // tempo dentro da lava
   const groundAt = (x, y) => { const c = Math.floor(x / TS), r = Math.floor(y / TS); return (r < 0 || c < 0 || r >= level.rows || c >= level.cols) ? 'k' : level.ground[r][c]; };
   let muted = false; const sounds = {};
-  const SOUNDS = { swing: 'sfx_throw', hit: 'sfx_hurt', die: 'sfx_disappear', tick: 'sfx_select', win: 'sfx_magic', bump: 'sfx_bump', cast: 'sfx_magic' };
+  const SOUNDS = { swing: 'sfx_throw', hit: 'sfx_hurt', die: 'sfx_disappear', tick: 'sfx_select', win: 'sfx_magic', bump: 'sfx_bump', cast: 'sfx_magic', power: 'sfx_gem', shield: 'sfx_select' };
   function play(n) { if (muted || !sounds[n]) return; try { const a = sounds[n].cloneNode(); a.volume = 0.5; a.play().catch(() => {}); } catch {} }
   const serverNow = () => Date.now() + clockOffset;
   const raceTime = () => (serverNow() - startAt) / 1000;
@@ -215,7 +266,8 @@ const Arena = (() => {
       const kind = weaponKind(player.hero) || 'magic'; while (shots.length < 4) spawnShot(player.x + 60 + shots.length * 70, player.y - 22, 1, 0, kind, false); for (const s of shots) s.t = 0.1;
       if (!puffs.length) puffs.push({ x: player.x + 350, y: player.y - 22, kind, t: 0.1 }); puffs[0].t = 0.1;
     }
-    const active = now >= 0 && !frozen && player.alive;
+    for (const k in eff) eff[k] = Math.max(0, eff[k] - dt); frozenT = Math.max(0, frozenT - dt);
+    const active = now >= 0 && !frozen && player.alive && frozenT <= 0;
     const a = active ? axis() : { x: 0, y: 0 };
     let vx = a.x, vy = a.y;
     if (vx && vy) { vx *= Math.SQRT1_2; vy *= Math.SQRT1_2; }
@@ -225,11 +277,13 @@ const Arena = (() => {
     // ataque
     player.cd = Math.max(0, player.cd - dt);
     if (attackPressed && active && player.cd <= 0 && player.attackT < 0) {
+      eff.invis = 0; // atacar revela
       const kind = weaponKind(player.hero);
       if (kind) { // à distância: começa a preparação; o projétil sai depois de SHOT_WINDUP (ver abaixo)
-        player.attackT = 0; player.cd = SHOT_CD; player.ranged = true; player.shotKind = kind; player.shotFired = false; play(kind === 'arrow' ? 'swing' : 'cast'); if (hooks.onAttack) hooks.onAttack();
-      } else { const ms = meleeStats(player.hero); player.attackT = 0; player.cd = ms.cd; player.range = ms.range; player.atkTime = ms.time; player.ranged = false; hitSent.clear(); play('swing'); if (hooks.onAttack) hooks.onAttack(); }
+        player.attackT = 0; player.cd = SHOT_CD; player.ranged = true; player.shotKind = kind; player.shotFired = false; player.energyFired = false; play(kind === 'arrow' ? 'swing' : 'cast'); if (hooks.onAttack) hooks.onAttack();
+      } else { const ms = meleeStats(player.hero); player.attackT = 0; player.cd = ms.cd; player.range = ms.range; player.atkTime = ms.time; player.ranged = false; player.energyFired = false; hitSent.clear(); play('swing'); if (hooks.onAttack) hooks.onAttack(); }
     }
+    if (player.attackT === 0 && eff.fury > 0) player.cd *= 0.65; // fúria: golpes mais rápidos
     attackPressed = false;
     updateShots(dt);
     if (player.attackT >= 0) {
@@ -239,9 +293,9 @@ const Arena = (() => {
         const len = Math.hypot(vx, vy); const dx = len ? vx / len : player.facing, dy = len ? vy / len : 0;
         if (dx) player.facing = dx > 0 ? 1 : -1;
         const sx = player.x + dx * 22, sy = player.y - 22 + dy * 12, kind = player.shotKind || 'magic';
-        spawnShot(sx, sy, dx, dy, kind, true);
-        if (hooks.onShoot) hooks.onShoot({ x: Math.round(sx), y: Math.round(sy), dx: +dx.toFixed(3), dy: +dy.toFixed(3), kind });
+        fire(sx, sy, dx, dy, kind, eff.triple > 0 ? 3 : 1);
       }
+      if (!player.ranged && !player.energyFired && player.attackT >= ATTACK_HIT_AT && eff.triple > 0) { player.energyFired = true; fire(player.x + player.facing * 22, player.y - 22, player.facing, 0, 'magic', 3); } // arma de perto com tiro triplo: energia
       if (player.attackT >= ATTACK_HIT_AT && !player.ranged) { // golpe: retângulo à frente
         const R = player.range || ATTACK_RANGE, x0 = player.facing > 0 ? player.x : player.x - R, x1 = player.facing > 0 ? player.x + R : player.x;
         for (const [id, r] of remote) {
@@ -255,20 +309,25 @@ const Arena = (() => {
     player.dashCd = Math.max(0, (player.dashCd || 0) - dt);
     if (dashPressed && active && player.dashCd <= 0 && player.attackT < 0) {
       const len = Math.hypot(vx, vy); const dx = len ? vx / len : player.facing, dy = len ? vy / len : 0;
-      player.dashT = DASH_TIME; player.dashDx = dx; player.dashDy = dy; player.dashCd = DASH_CD; play('bump');
+      player.dashT = DASH_TIME; player.dashDx = dx; player.dashDy = dy; player.dashCd = eff.boots > 0 ? 0 : DASH_CD; play('bump');
     }
     dashPressed = false;
     if (player.dashT > 0) { player.dashT -= dt; vx = player.dashDx; vy = player.dashDy; }
     // knockback decai
     player.kx *= Math.pow(0.02, dt); player.ky *= Math.pow(0.02, dt);
-    const spd = player.dashT > 0 ? DASH_SPEED : player.attackT >= 0 ? SPEED * 0.4 : SPEED;
+    const spd = (player.dashT > 0 ? DASH_SPEED : player.attackT >= 0 ? SPEED * 0.4 : SPEED) * (eff.boots > 0 ? 1.4 : 1);
     player.vx = vx; player.vy = vy;
-    const mx = vx * spd * dt + player.kx * dt, my = vy * spd * dt + player.ky * dt;
+    let mx = vx * spd * dt + player.kx * dt, my = vy * spd * dt + player.ky * dt;
+    if (pull) { pull.t -= dt; const d = Math.hypot(pull.x - player.x, pull.y - player.y); if (pull.t <= 0 || d < 40) pull = null; else { mx += (pull.x - player.x) / d * 300 * dt; my += (pull.y - player.y) / d * 300 * dt; } } // ímã puxa
     if (!collides(player.x + mx, player.y)) player.x += mx;
     if (!collides(player.x, player.y + my)) player.y += my;
     player.x = Math.max(TS, Math.min(level.width * S - TS, player.x)); player.y = Math.max(TS + 8, Math.min(level.height * S - TS, player.y));
     player.invuln = Math.max(0, player.invuln - dt); player.hurtT = Math.max(0, player.hurtT - dt);
     player.animTime += dt;
+    // poderes no chão: encostou, pede ao servidor (uma vez a cada 0,5 s por item)
+    if (active && hooks.onPickup) for (const p of powers.values()) {
+      if (Math.hypot(p.x - player.x, p.y - player.y) < 44 && (performance.now() - (pickupAsked.get(p.id) || 0)) > 500) { pickupAsked.set(p.id, performance.now()); hooks.onPickup(p.id); }
+    }
     // lava (pelos pés): queima aos poucos enquanto o jogador fica dentro
     if (active) {
       if (groundAt(player.x, player.y - 4) === 'l') { lavaT += dt; if (lavaT >= LAVA_TICK) { lavaT = 0; if (hooks.onHazard) hooks.onHazard('lava'); } }
@@ -280,7 +339,7 @@ const Arena = (() => {
     camera.x += (tx - camera.x) * Math.min(1, dt * 8); camera.y += (ty - camera.y) * Math.min(1, dt * 8);
     camera.x = Math.max(0, Math.min(level.width * S - W, camera.x)); camera.y = Math.max(0, Math.min(level.height * S - H, camera.y));
 
-    for (const r of remote.values()) { r.x += (r.tx - r.x) * Math.min(1, dt * 14); r.y += (r.ty - r.y) * Math.min(1, dt * 14); if (r.attackT >= 0) { r.attackT += dt; if (r.attackT > ATTACK_TIME) r.attackT = -1; } }
+    for (const r of remote.values()) { r.x += (r.tx - r.x) * Math.min(1, dt * 14); r.y += (r.ty - r.y) * Math.min(1, dt * 14); if (r.attackT >= 0) { r.attackT += dt; if (r.attackT > ATTACK_TIME) r.attackT = -1; } r.invisT = Math.max(0, (r.invisT || 0) - dt); r.frozenT = Math.max(0, (r.frozenT || 0) - dt); r.bootsT = Math.max(0, (r.bootsT || 0) - dt); }
 
     if (hooks.onState) {
       const an = animOf(player);
@@ -300,10 +359,16 @@ const Arena = (() => {
   // ---------- render ----------
   function drawHeroAt(p, x, y, anim, t, alpha) {
     const sx = Math.round(x - camera.x), sy = Math.round(y - camera.y);
+    const invis = p === player ? eff.invis > 0 : (p.invisT || 0) > 0;
+    if (invis) alpha = Math.min(alpha, p === player ? 0.45 : 0.12);
+    if (p.shield) { ctx.save(); ctx.globalAlpha = 0.55; ctx.strokeStyle = '#9fe8ff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(sx, sy - 30, 34, 42, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
     ctx.save(); ctx.globalAlpha = alpha;
     const ok = p.hero && Hero.draw(ctx, p.hero, anim, t, sx, sy, p.facing < 0, HERO_SCALE);
     if (!ok) { ctx.fillStyle = '#3fbf6a'; ctx.fillRect(sx - 12, sy - 48, 24, 48); }
     ctx.restore();
+    const frz = p === player ? frozenT : (p.frozenT || 0);
+    if (frz > 0) { ctx.save(); ctx.globalAlpha = 0.55; ctx.fillStyle = '#bff2ff'; ctx.strokeStyle = '#5fc8ea'; ctx.lineWidth = 3; ctx.beginPath(); ctx.roundRect(sx - 22, sy - 62, 44, 64, 8); ctx.fill(); ctx.stroke(); ctx.restore(); }
+    if (invis && p !== player) return; // invisível: sem nome nem corações para os outros
     // nome e corações
     ctx.save();
     ctx.font = '700 13px "Baloo 2", Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.lineJoin = 'round';
@@ -331,6 +396,7 @@ const Arena = (() => {
     // objetos e personagens ordenados pela base (y)
     const items = [];
     for (const o of level.objects) if (!o.deco && !o.over) { const by = (o.ty + o.th) * TS, bx = (o.tx + o.tw / 2) * TS; if (bx > cx - 200 && bx < cx + VW + 200 && by > cy - 50 && by < cy + VH + 300) items.push({ y: by - 4, draw: () => drawObject(ctx, o, cx, cy) }); }
+    for (const p of powers.values()) items.push({ y: p.y - 1, draw: () => drawPower(p, t) });
     for (const r of remote.values()) items.push({ y: r.y, draw: () => { const hurtFor = r.hurtAt ? (performance.now() - r.hurtAt) / 1000 : 99; const blink = hurtFor < HIT_INVULN && Math.floor(hurtFor * 12) % 2 === 0; drawHeroAt(r, r.x, r.y, r.a === 'a' ? 'a' : r.a, r.a === 'a' && r.attackT >= 0 ? r.attackT : t, r.alive ? (blink ? 0.35 : 1) : 0.6); } });
     items.push({ y: player.y, draw: () => { const blink = player.invuln > 0 && Math.floor(player.animTime * 12) % 2 === 0; drawHeroAt(player, player.x, player.y, animOf(player), player.attackT >= 0 ? player.attackT : player.animTime, player.alive ? (blink ? 0.35 : 1) : 0.6); } });
     items.sort((a, b) => a.y - b.y);
@@ -340,6 +406,7 @@ const Arena = (() => {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     // HUD: corações grandes
     for (let i = 0; i < MAX_HP; i++) drawHeart(16 + i * 40, 12, 36, i < player.hp);
+    const lab = effectLabel(); if (lab) { ctx.save(); ctx.font = '700 18px "Baloo 2", Nunito, sans-serif'; ctx.textAlign = 'left'; ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(15,40,30,.8)'; ctx.fillStyle = '#ffe066'; ctx.strokeText(lab, 16, 72); ctx.fillText(lab, 16, 72); ctx.restore(); }
     // contagem / eliminado
     ctx.save();
     ctx.font = '400 84px "Lilita One", Fredoka, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 10; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(15,40,30,.8)';
@@ -359,7 +426,7 @@ const Arena = (() => {
     if (loaded) return loaded;
     loaded = (async () => {
       const img = (src) => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
-      [atlas, retro, heartsImg, autoImg, arrowImg] = await Promise.all([img('assets/retro/atlas.png'), fetch('assets/retro/index.json').then((r) => r.json()), img('assets/sheets/spritesheet-tiles-default.png'), img('assets/retro/auto.png'), img('assets/retro/arrow.png')]);
+      [atlas, retro, heartsImg, autoImg, arrowImg, powersImg] = await Promise.all([img('assets/retro/atlas.png'), fetch('assets/retro/index.json').then((r) => r.json()), img('assets/sheets/spritesheet-tiles-default.png'), img('assets/retro/auto.png'), img('assets/retro/arrow.png'), img('assets/retro/powers.png')]);
       weaponLen = await fetch('assets/heroes/weapons.json').then((r) => r.json()).catch(() => ({}));
       const xml = await fetch('assets/sheets/spritesheet-tiles-default.xml').then((r) => r.text());
       const rect = (name) => { const m = xml.match(new RegExp('name="' + name + '" x="(\\d+)" y="(\\d+)" width="(\\d+)" height="(\\d+)"')); return { x: +m[1], y: +m[2], w: +m[3], h: +m[4] }; };
@@ -375,10 +442,13 @@ const Arena = (() => {
     rectCache.clear();
     prerenderGround();
     remote.clear(); hitSent.clear(); shots.length = 0; puffs.length = 0;
+    powers.clear(); pickupAsked.clear(); for (const k in eff) eff[k] = 0; frozenT = 0; pull = null; player.shield = false;
+    for (const p of opts.powers || []) addPower(p);
+    if (opts.demoPowers) ['heart', 'shield', 'fury', 'triple', 'ice', 'boots', 'invis', 'magnet'].forEach((kind, i) => addPower({ id: 900 + i, kind, x: player.x + 90 + i * 70, y: player.y, until: 0 }));
     autoFire = !!opts.autoFire;
     clockOffset = Number.isFinite(opts.clockOffset) ? opts.clockOffset : opts.serverNow - Date.now();
     startAt = opts.startAt;
-    hooks = { onState: opts.onState, onAttack: opts.onAttack, onHit: opts.onHit, onHazard: opts.onHazard, onShoot: opts.onShoot };
+    hooks = { onState: opts.onState, onAttack: opts.onAttack, onHit: opts.onHit, onHazard: opts.onHazard, onShoot: opts.onShoot, onPickup: opts.onPickup };
     lavaT = 0;
     const sp = opts.spawn || level.spawns[0];
     Object.assign(player, { id: opts.id || '', x: sp.x * S, y: sp.y * S, vx: 0, vy: 0, facing: 1, hp: opts.hp == null ? MAX_HP : opts.hp, alive: opts.alive !== false, attackT: -1, cd: 0, invuln: 0, hurtT: 0, kx: 0, ky: 0, hero: opts.hero ? Hero.decode(opts.hero) : null, nick: opts.nick || '', animTime: 0, dashT: 0, dashCd: 0, dashDx: 1, dashDy: 0 });
@@ -419,10 +489,10 @@ const Arena = (() => {
       r.hp = m.hp; r.hurtAt = performance.now(); if (r.hp <= 0) r.alive = false;
     }
   }
-  function remoteAttack(id) { const r = remote.get(id); if (r) { r.attackT = 0; r.a = 'a'; } }
-  function remoteShoot(m) { const r = remote.get(m.id); if (r) { if (r.attackT < 0) r.attackT = 0; r.a = 'a'; if (m.dx) r.facing = m.dx > 0 ? 1 : -1; } spawnShot(+m.x, +m.y, +m.dx, +m.dy, String(m.kind || 'magic'), false); }
+  function remoteAttack(id) { const r = remote.get(id); if (r) { r.attackT = 0; r.a = 'a'; r.invisT = 0; } }
+  function remoteShoot(m) { const r = remote.get(m.id); if (r) { if (r.attackT < 0) r.attackT = 0; r.a = 'a'; r.invisT = 0; if (m.dx) r.facing = m.dx > 0 ? 1 : -1; } spawnShot(+m.x, +m.y, +m.dx, +m.dy, String(m.kind || 'magic'), false); }
   const stats = () => ({ time: now, hp: player.hp, alive: player.alive, dashes: 4, dashMax: 4, coins: 0, boost: 0, finished: false, arena: level ? level.name : '' });
   function setMuted(v) { muted = v; }
   function setOverview(v) { overview = !!v; }
-  return { load, start, stop, setRemote, setVirtualInput, setFrozen, setClockOffset, applyDamage, remoteAttack, remoteShoot, stats, setMuted, setOverview, MAX_HP, S, W, H };
+  return { load, start, stop, setRemote, setVirtualInput, setFrozen, setClockOffset, applyDamage, remoteAttack, remoteShoot, addPower, removePower, powerTaken, freeze, pull: pullFrom, shieldBreak, stats, setMuted, setOverview, MAX_HP, S, W, H };
 })();
