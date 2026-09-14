@@ -120,7 +120,7 @@
   .hud-players, .hud-stat { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .hud-stat { font-weight: 700; color: var(--ink); }
   .hud-note { font-size: 13px; color: var(--grass-dark); font-weight: 700; }
-  body.mode-arena .hud-race, body.mode-arena .hint-race { display: none !important; }
+  body.mode-arena .hud-race, body.mode-arena .hint-race, body.mode-arena #touch-hud { display: none !important; } /* na arena só os corações (desenhados no canvas) */
   .result .label { font-weight: 800; color: var(--grass-dark); }
   .hud-deadline { color: var(--error) !important; }
   #touch-hud { position: absolute; left: max(16px, env(safe-area-inset-left)); top: max(12px, env(safe-area-inset-top)); color: #fff; font: 700 15px Nunito, sans-serif; text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none; }
