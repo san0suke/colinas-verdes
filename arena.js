@@ -48,21 +48,49 @@ const Arena = (() => {
   const leftOf = (until) => Math.max(0, (until - serverNow()) / 1000);
   function addPower(p) { powers.set(p.id, { id: p.id, kind: p.kind, x: +p.x, y: +p.y, until: p.until, t: Math.random() * 6 }); }
   function removePower(id) { powers.delete(id); pickupAsked.delete(id); }
+  // cor e texto de cada poder (feedback ao pegar)
+  const POWER_COLOR = { heart: '#ff5c9a', shield: '#9fe8ff', fury: '#ff6a3d', triple: '#ffd24a', ice: '#7fe4ff', boots: '#7be36a', invis: '#c58cff', magnet: '#ff8ad8' };
+  const POWER_TEXT = { heart: '+1 ♥', shield: 'Escudo: absorve 1 golpe', fury: 'Fúria: velocidade de ataque ↑', triple: 'Tiro triplo!', ice: 'Bomba de gelo!', boots: 'Botas: velocidade ↑ · dash livre', invis: 'Invisível! (atacar revela)', magnet: 'Ímã: puxa os inimigos' };
+  const floats = []; // textos que sobem e somem: { x, y, text, color, t, who }
+  function floatText(who, text, color) { floats.push({ who, text, color, t: 0 }); }
+  function bigBurst(x, y, color) { for (let k = 0; k < 3; k++) puffs.push({ x, y, kind: 'magic', color, t: -k * 0.08 }); }
   function powerTaken(m) {
     const p = powers.get(m.id); removePower(m.id);
-    if (p) puffs.push({ x: p.x, y: p.y - 20, kind: 'holy', t: 0 });
+    const color = POWER_COLOR[m.kind] || '#fff', who = m.by === player.id ? player : remote.get(m.by);
+    if (who) { bigBurst(who.x, who.y - 24, color); floatText(who, POWER_TEXT[m.kind] || m.kind, color); }
+    else if (p) puffs.push({ x: p.x, y: p.y - 20, kind: 'holy', t: 0 });
     if (m.by === player.id) {
       play('power');
       if (m.kind === 'heart' && m.hp != null) player.hp = m.hp;
       else if (m.kind === 'shield') player.shield = true;
       else if (eff[m.kind] != null) eff[m.kind] = leftOf(m.until);
     } else {
-      const r = remote.get(m.by); if (!r) return;
+      const r = who; if (!r) return;
       if (m.kind === 'heart' && m.hp != null) r.hp = m.hp;
       else if (m.kind === 'shield') r.shield = true;
       else if (m.kind === 'invis') r.invisT = leftOf(m.until);
       else if (m.kind === 'boots') r.bootsT = leftOf(m.until);
+      else if (m.kind === 'fury') r.furyT = leftOf(m.until);
+      else if (m.kind === 'triple') r.tripleT = leftOf(m.until);
     }
+  }
+  // selos sobre a cabeça enquanto o efeito dura
+  function drawBadges(p, sx, sy) {
+    const list = [];
+    const fury = p === player ? eff.fury : (p.furyT || 0), boots = p === player ? eff.boots : (p.bootsT || 0), triple = p === player ? eff.triple : (p.tripleT || 0);
+    if (fury > 0) list.push(['ATQ ↑', POWER_COLOR.fury]); if (boots > 0) list.push(['VEL ↑', POWER_COLOR.boots]); if (triple > 0) list.push(['×3', POWER_COLOR.triple]);
+    if (!list.length) return;
+    ctx.save(); ctx.font = '800 13px "Baloo 2", Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const wds = list.map(([t]) => ctx.measureText(t).width + 12); let x = sx - (wds.reduce((a, b) => a + b, 0) + (list.length - 1) * 4) / 2;
+    const bob = Math.sin(performance.now() / 150) * 1.5, y = sy - 100 + bob;
+    list.forEach(([t, c], i) => { ctx.fillStyle = c; ctx.beginPath(); ctx.roundRect(x, y - 9, wds[i], 18, 6); ctx.fill(); ctx.fillStyle = '#1a1a2a'; ctx.fillText(t, x + wds[i] / 2, y + 1); x += wds[i] + 4; });
+    ctx.restore();
+  }
+  function updateFloats(dt) { for (let i = floats.length - 1; i >= 0; i--) { floats[i].t += dt; if (floats[i].t > 1.6) floats.splice(i, 1); } }
+  function drawFloats() {
+    ctx.save(); ctx.font = '800 18px "Baloo 2", Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(15,30,40,.85)';
+    for (const f of floats) { const k = f.t / 1.6, sx = Math.round(f.who.x - camera.x), sy = Math.round(f.who.y - camera.y) - 110 - k * 50; ctx.globalAlpha = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4; ctx.fillStyle = f.color; ctx.strokeText(f.text, sx, sy); ctx.fillText(f.text, sx, sy); }
+    ctx.restore();
   }
   function freeze(m) {
     const ids = m.ids || [];
@@ -124,7 +152,8 @@ const Arena = (() => {
     ctx.restore();
   }
   function drawPuff(p) {
-    const sx = Math.round(p.x - camera.x), sy = Math.round(p.y - camera.y), [c1] = SHOT_COLORS[p.kind] || SHOT_COLORS.magic, k = p.t / 0.25;
+    if (p.t < 0) return;
+    const sx = Math.round(p.x - camera.x), sy = Math.round(p.y - camera.y), c1 = p.color || (SHOT_COLORS[p.kind] || SHOT_COLORS.magic)[0], k = p.t / 0.25;
     ctx.save(); ctx.globalAlpha = 1 - k; ctx.strokeStyle = c1; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(sx, sy, 8 + k * 26, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
   const LAVA_TICK = 0.7;                       // s dentro da lava por coração perdido
@@ -266,7 +295,7 @@ const Arena = (() => {
       const kind = weaponKind(player.hero) || 'magic'; while (shots.length < 4) spawnShot(player.x + 60 + shots.length * 70, player.y - 22, 1, 0, kind, false); for (const s of shots) s.t = 0.1;
       if (!puffs.length) puffs.push({ x: player.x + 350, y: player.y - 22, kind, t: 0.1 }); puffs[0].t = 0.1;
     }
-    for (const k in eff) eff[k] = Math.max(0, eff[k] - dt); frozenT = Math.max(0, frozenT - dt);
+    for (const k in eff) eff[k] = Math.max(0, eff[k] - dt); frozenT = Math.max(0, frozenT - dt); updateFloats(dt);
     const active = now >= 0 && !frozen && player.alive && frozenT <= 0;
     const a = active ? axis() : { x: 0, y: 0 };
     let vx = a.x, vy = a.y;
@@ -339,7 +368,7 @@ const Arena = (() => {
     camera.x += (tx - camera.x) * Math.min(1, dt * 8); camera.y += (ty - camera.y) * Math.min(1, dt * 8);
     camera.x = Math.max(0, Math.min(level.width * S - W, camera.x)); camera.y = Math.max(0, Math.min(level.height * S - H, camera.y));
 
-    for (const r of remote.values()) { r.x += (r.tx - r.x) * Math.min(1, dt * 14); r.y += (r.ty - r.y) * Math.min(1, dt * 14); if (r.attackT >= 0) { r.attackT += dt; if (r.attackT > ATTACK_TIME) r.attackT = -1; } r.invisT = Math.max(0, (r.invisT || 0) - dt); r.frozenT = Math.max(0, (r.frozenT || 0) - dt); r.bootsT = Math.max(0, (r.bootsT || 0) - dt); }
+    for (const r of remote.values()) { r.x += (r.tx - r.x) * Math.min(1, dt * 14); r.y += (r.ty - r.y) * Math.min(1, dt * 14); if (r.attackT >= 0) { r.attackT += dt; if (r.attackT > ATTACK_TIME) r.attackT = -1; } r.invisT = Math.max(0, (r.invisT || 0) - dt); r.frozenT = Math.max(0, (r.frozenT || 0) - dt); r.bootsT = Math.max(0, (r.bootsT || 0) - dt); r.furyT = Math.max(0, (r.furyT || 0) - dt); r.tripleT = Math.max(0, (r.tripleT || 0) - dt); }
 
     if (hooks.onState) {
       const an = animOf(player);
@@ -369,6 +398,7 @@ const Arena = (() => {
     const frz = p === player ? frozenT : (p.frozenT || 0);
     if (frz > 0) { ctx.save(); ctx.globalAlpha = 0.55; ctx.fillStyle = '#bff2ff'; ctx.strokeStyle = '#5fc8ea'; ctx.lineWidth = 3; ctx.beginPath(); ctx.roundRect(sx - 22, sy - 62, 44, 64, 8); ctx.fill(); ctx.stroke(); ctx.restore(); }
     if (invis && p !== player) return; // invisível: sem nome nem corações para os outros
+    drawBadges(p, sx, sy);
     // nome e corações
     ctx.save();
     ctx.font = '700 13px "Baloo 2", Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.lineJoin = 'round';
@@ -403,6 +433,7 @@ const Arena = (() => {
     for (const it of items) it.draw();
     for (const s of shots) drawShot(s);
     for (const p of puffs) drawPuff(p);
+    drawFloats();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     // HUD: corações grandes
     for (let i = 0; i < MAX_HP; i++) drawHeart(16 + i * 40, 12, 36, i < player.hp);
@@ -452,6 +483,7 @@ const Arena = (() => {
     const sp = opts.spawn || level.spawns[0];
     Object.assign(player, { id: opts.id || '', x: sp.x * S, y: sp.y * S, vx: 0, vy: 0, facing: 1, hp: opts.hp == null ? MAX_HP : opts.hp, alive: opts.alive !== false, attackT: -1, cd: 0, invuln: 0, hurtT: 0, kx: 0, ky: 0, hero: opts.hero ? Hero.decode(opts.hero) : null, nick: opts.nick || '', animTime: 0, dashT: 0, dashCd: 0, dashDx: 1, dashDy: 0 });
     camera.x = Math.max(0, Math.min(level.width * S - W, player.x - W / 2)); camera.y = Math.max(0, Math.min(level.height * S - H, player.y - H / 2));
+    if (opts.demoPowers) { eff.fury = 8; eff.boots = 8; floats.length = 0; floatText(player, POWER_TEXT.fury, POWER_COLOR.fury); bigBurst(player.x, player.y - 24, POWER_COLOR.fury); }
     if (opts.demoPowers) ['heart', 'shield', 'fury', 'triple', 'ice', 'boots', 'invis', 'magnet'].forEach((kind, i) => addPower({ id: 900 + i, kind, x: player.x + 90 + i * 70, y: player.y + 20, until: 0 }));
     frozen = false; lastSent = ''; lastTick = 99;
     if (hooks.onState) { const s = { x: Math.round(player.x), y: Math.round(player.y), f: player.facing, a: player.alive ? 'i' : 'd' }; lastSent = `${s.x},${s.y},${s.f},${s.a}`; hooks.onState(s); }
