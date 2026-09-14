@@ -21,7 +21,8 @@
   let currentRoom = null;          // { code, name, visibility } | null (sozinho)
   let myColor = Game.COLORS[Math.floor(Math.random() * Game.COLORS.length)];
   const players = new Map();       // id -> { id, nick, color, x, y, f, a } (outros jogadores da sala)
-  let reconnectDelay = 1000, hbTimer = 0;
+  let reconnectDelay = 1000, hbTimer = 0, lastRecv = 0;
+  const SILENCE_MS = 10000; // sem nada do servidor por 10 s → a conexão morreu (o proxy pode deixá-la "aberta" à toa)
   let lastRooms = [];              // última lista recebida do servidor
   let race = null;                 // { seed, startAt, phase, results, nextAt, finished }
   let clockOffset = 0;             // relógio do servidor − local
@@ -356,6 +357,7 @@
     taken(m) { if (m.by !== myId) Game.removeItem(m.id); },
     race_end(m) { if (currentRoom) { race = m; if (!clockSynced) clockOffset = m.now - Date.now(); showResults(m.results || [], m.nextAt); } },
     pong(m) { onPong(m); },
+    hb() {},
     error(m) {
       if (m.ctx === 'join' && askingCode) { askingError = m.msg || 'Erro'; renderRooms(lastRooms); return; }
       setMsg(m.ctx === 'join' ? els.joinMsg : els.createMsg, m.msg || 'Erro', 'error');
@@ -371,17 +373,28 @@
     ws.onopen = () => {
       reconnectDelay = 1000; setOnline(true); setStatus('Online', 'ok'); sendMsg('hello', { nick: nick(), color: myColor, hero: heroStr });
       clockSynced = false; syncClock(); clearInterval(syncTimer); syncTimer = setInterval(syncClock, 30000);
-      clearInterval(hbTimer); hbTimer = setInterval(() => sendMsg('hb', {}), 4000); // batimento: o servidor derruba quem fica 12 s em silêncio
+      lastRecv = Date.now(); clearInterval(hbTimer);
+      hbTimer = setInterval(() => { // batimento: o servidor derruba quem fica 12 s em silêncio; e nós derrubamos se ele some
+        if (Date.now() - lastRecv > SILENCE_MS) { dropConnection(); return; }
+        sendMsg('hb', {});
+      }, 4000);
     };
-    ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } const h = on[m && m.type]; if (h) h(m); };
-    ws.onclose = () => {
-      setOnline(false); clearInterval(hbTimer);
-      if (currentRoom) leaveRoom();   // a sala morreu com a conexão
-      setStatus('Offline — tentando reconectar…', 'warn');
-      setTimeout(connect, reconnectDelay);
-      reconnectDelay = Math.min(15000, reconnectDelay * 2);
-    };
+    ws.onmessage = (ev) => { lastRecv = Date.now(); let m; try { m = JSON.parse(ev.data); } catch { return; } const h = on[m && m.type]; if (h) h(m); };
+    ws.onclose = onClosed;
     ws.onerror = () => {};
+  }
+  function onClosed() {
+    setOnline(false); clearInterval(hbTimer);
+    if (currentRoom) leaveRoom();   // a sala morreu com a conexão
+    setStatus('Offline — tentando reconectar…', 'warn');
+    setTimeout(connect, reconnectDelay);
+    reconnectDelay = Math.min(15000, reconnectDelay * 2);
+  }
+  // conexão silenciosa: descarta o socket sem esperar o handshake de fechamento (que pode nunca vir) e reconecta
+  function dropConnection() {
+    const old = ws; ws = null;
+    if (old) { old.onclose = null; old.onmessage = null; try { old.close(); } catch {} }
+    onClosed();
   }
 
   // ---------- formulários ----------

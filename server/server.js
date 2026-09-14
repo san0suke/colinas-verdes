@@ -167,7 +167,7 @@ const handlers = {
   },
   list(c) { send(c, 'rooms', { rooms: publicRooms() }); },
   ping(c, m) { send(c, 'pong', { t0: Number(m.t0) || 0, server: Date.now() }); },
-  hb() {}, // batimento do cliente (só conta como sinal de vida)
+  hb(c) { send(c, 'hb', {}); }, // batimento: responde para o cliente saber que a conexão ainda vive
   create(c, m) {
     const name = cleanText(m.name, 32) || randomRoomName();
     const visibility = m.visibility === 'private' ? 'private' : 'public';
