@@ -209,10 +209,11 @@
   #stick.active { opacity: .9; }
   #knob { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%;
           background: rgba(255,255,255,.75); box-shadow: 0 4px 12px rgba(0,0,0,.3); pointer-events: none; }
-  #jump { position: absolute; right: calc(max(28px, env(safe-area-inset-right)) + 80px); bottom: max(28px, env(safe-area-inset-bottom)); width: 96px; height: 96px; border-radius: 50%;
+  #jump { position: absolute; right: calc(max(28px, env(safe-area-inset-right)) + 66px); bottom: max(28px, env(safe-area-inset-bottom)); width: 96px; height: 96px; border-radius: 50%;
           border: 0; border-bottom: 5px solid var(--grass-dark); background: var(--grass); color: var(--grass-ink); font: 700 16px Nunito, sans-serif; }
   #jump:active { transform: translateY(2px); border-bottom-width: 3px; }
-  #dash-wrap { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: max(28px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  #dash-wrap { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 64px); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  body.mode-arena #dash-charges { display: none; } /* na arena o dash é ilimitado: sem tracinhos */
   #dash { width: 60px; height: 60px; border-radius: 50%; border: 0; border-bottom: 4px solid #2f6fb5; background: #4a9de6; color: #0b2a4a; font: 700 13px Nunito, sans-serif; }
   #dash:active { transform: translateY(2px); border-bottom-width: 2px; }
   #dash:disabled { opacity: .45; }
@@ -458,16 +459,16 @@
     </div>
   </div>
 
-<script src="config.js?v=71c09d5"></script>
-<script src="level.js?v=71c09d5"></script>
-<script src="hero.js?v=71c09d5"></script>
-<script src="heroeditor.js?v=71c09d5"></script>
-<script src="arenas.js?v=71c09d5"></script>
-<script src="arena-level.js?v=71c09d5"></script>
-<script src="arena.js?v=71c09d5"></script>
-<script src="game.js?v=71c09d5"></script>
-<script src="music.js?v=71c09d5"></script>
-<script src="lobby.js?v=71c09d5"></script>
-<script src="touch.js?v=71c09d5"></script>
+<script src="config.js?v=aac91e8"></script>
+<script src="level.js?v=aac91e8"></script>
+<script src="hero.js?v=aac91e8"></script>
+<script src="heroeditor.js?v=aac91e8"></script>
+<script src="arenas.js?v=aac91e8"></script>
+<script src="arena-level.js?v=aac91e8"></script>
+<script src="arena.js?v=aac91e8"></script>
+<script src="game.js?v=aac91e8"></script>
+<script src="music.js?v=aac91e8"></script>
+<script src="lobby.js?v=aac91e8"></script>
+<script src="touch.js?v=aac91e8"></script>
 </body>
 </html>

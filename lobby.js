@@ -21,7 +21,7 @@
   let currentRoom = null;          // { code, name, visibility } | null (sozinho)
   let myColor = Game.COLORS[Math.floor(Math.random() * Game.COLORS.length)];
   const players = new Map();       // id -> { id, nick, color, x, y, f, a } (outros jogadores da sala)
-  let reconnectDelay = 1000;
+  let reconnectDelay = 1000, hbTimer = 0;
   let lastRooms = [];              // última lista recebida do servidor
   let race = null;                 // { seed, startAt, phase, results, nextAt, finished }
   let clockOffset = 0;             // relógio do servidor − local
@@ -371,10 +371,11 @@
     ws.onopen = () => {
       reconnectDelay = 1000; setOnline(true); setStatus('Online', 'ok'); sendMsg('hello', { nick: nick(), color: myColor, hero: heroStr });
       clockSynced = false; syncClock(); clearInterval(syncTimer); syncTimer = setInterval(syncClock, 30000);
+      clearInterval(hbTimer); hbTimer = setInterval(() => sendMsg('hb', {}), 4000); // batimento: o servidor derruba quem fica 12 s em silêncio
     };
     ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } const h = on[m && m.type]; if (h) h(m); };
     ws.onclose = () => {
-      setOnline(false);
+      setOnline(false); clearInterval(hbTimer);
       if (currentRoom) leaveRoom();   // a sala morreu com a conexão
       setStatus('Offline — tentando reconectar…', 'warn');
       setTimeout(connect, reconnectDelay);

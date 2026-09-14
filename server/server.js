@@ -167,6 +167,7 @@ const handlers = {
   },
   list(c) { send(c, 'rooms', { rooms: publicRooms() }); },
   ping(c, m) { send(c, 'pong', { t0: Number(m.t0) || 0, server: Date.now() }); },
+  hb() {}, // batimento do cliente (só conta como sinal de vida)
   create(c, m) {
     const name = cleanText(m.name, 32) || randomRoomName();
     const visibility = m.visibility === 'private' ? 'private' : 'public';
@@ -282,11 +283,11 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server });
 let nextId = 1;
 wss.on('connection', (ws) => {
-  const c = { id: String(nextId++), ws, nick: 'Jogador', color: 'green', room: null, x: 0, y: 0, f: 1, a: 'i', alive: true, ka: true };
+  const c = { id: String(nextId++), ws, nick: 'Jogador', color: 'green', room: null, x: 0, y: 0, f: 1, a: 'i', alive: true, ka: true, lastMsg: Date.now() };
   clients.set(c.id, c);
   ws.on('pong', () => { c.ka = true; c.missed = 0; });
   ws.on('message', (raw) => {
-    c.ka = true; c.missed = 0; // sinal de vida da conexão (não confundir com c.alive = não eliminado na arena)
+    c.ka = true; c.missed = 0; c.lastMsg = Date.now(); // sinal de vida da conexão (não confundir com c.alive = não eliminado na arena)
     if (raw.length > 4096) return;
     let m; try { m = JSON.parse(raw); } catch { return; }
     const h = handlers[m && m.type];
@@ -296,13 +297,15 @@ wss.on('connection', (ws) => {
   ws.on('error', () => {});
 });
 
-// keepalive: ping a cada 5 s; quem não responde a 2 seguidos é desconectado (e sai da sala na hora)
+// keepalive: o cliente manda 'hb' a cada 4 s (e estado/ping quando joga). Sem NENHUMA mensagem por 12 s → queda: a conexão é
+// derrubada e o jogador sai da sala na hora. (Só o ping do protocolo não basta: o proxy do Render pode responder por um celular que caiu.)
+const DEAD_MS = 12_000;
 setInterval(() => {
+  const now = Date.now();
   for (const c of clients.values()) {
-    c.missed = (c.missed || 0) + (c.ka ? 0 : 1);
-    if (c.missed >= 2) { c.ws.terminate(); continue; }
-    c.ka = false; c.ws.ping();
+    if (now - (c.lastMsg || 0) > DEAD_MS) { c.ws.terminate(); continue; }
+    c.ws.ping();
   }
-}, 5_000);
+}, 3_000);
 
 server.listen(PORT, () => console.log(`Colinas Verdes: http://localhost:${PORT}`));
