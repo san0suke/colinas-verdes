@@ -31,7 +31,7 @@
     moveKnob(0, 0);
     stick.classList.remove('active');
     stick.style.left = ''; stick.style.top = ''; stick.style.bottom = ''; // volta ao canto
-    Engine().setVirtualInput({ left: false, right: false });
+    Engine().setVirtualInput({ left: false, right: false, up: false, down: false }); // solta todos os eixos (o vertical ficava preso)
   }
 
   // O joystick "nasce" onde o dedo encosta, em qualquer ponto da metade esquerda da tela
