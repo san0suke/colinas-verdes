@@ -20,7 +20,7 @@ const randomRoomName = () => `${ROOM_NOUN[Math.floor(Math.random() * ROOM_NOUN.l
 const COUNTDOWN_MS = 4000;      // contagem regressiva antes da largada
 const RESULTS_MS = 5000;        // placar na tela antes da próxima corrida
 const FINISH_GRACE_MS = 15000;  // depois que o primeiro chega, os outros têm este tempo
-const ARENA_HP = 3, ARENA_RANGE = 200, ARENA_CD_MS = 400, ARENA_INVULN_MS = 900; // combate (px em escala 4×)
+const ARENA_HP = 3, ARENA_RANGE = 200, ARENA_SHOT_RANGE = 700, ARENA_CD_MS = 400, ARENA_INVULN_MS = 900; // combate (px em escala 4×); projétil alcança mais
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.txt': 'text/plain' };
 
 // ---------- estado ----------
@@ -221,6 +221,12 @@ const handlers = {
     const room = c.room; if (!room || room.mode !== 'arena' || !room.arena || room.arena.phase !== 'fighting' || !c.alive) return;
     broadcastRoom(room, 'player_attack', { id: c.id }, c);
   },
+  // projétil (magia/flecha): só repassa para os outros desenharem; o acerto vem em 'hit' com ranged
+  shoot(c, m) {
+    const room = c.room; if (!room || room.mode !== 'arena' || !room.arena || room.arena.phase !== 'fighting' || !c.alive) return;
+    const x = +m.x, y = +m.y, dx = +m.dx, dy = +m.dy; if (![x, y, dx, dy].every(Number.isFinite)) return;
+    broadcastRoom(room, 'player_shoot', { id: c.id, x, y, dx, dy, kind: String(m.kind || 'magic').slice(0, 12) }, c);
+  },
   hit(c, m) {
     const room = c.room; if (!room || room.mode !== 'arena' || !room.arena || room.arena.phase !== 'fighting') return;
     const a = room.arena, now = Date.now();
@@ -228,7 +234,7 @@ const handlers = {
     const t = room.players.get(String(m.target)); if (!t || !t.alive || t === c) return;
     if (now - c.lastAttack < ARENA_CD_MS) return; // um golpe por vez
     if (now < t.invulnUntil) return;                // alvo ainda piscando
-    if (Math.hypot(t.x - c.x, t.y - c.y) > ARENA_RANGE) return; // longe demais (posições mais recentes conhecidas)
+    if (Math.hypot(t.x - c.x, t.y - c.y) > (m.ranged ? ARENA_SHOT_RANGE : ARENA_RANGE)) return; // longe demais (posições mais recentes conhecidas)
     c.lastAttack = now; t.invulnUntil = now + ARENA_INVULN_MS;
     t.hp = Math.max(0, (t.hp || 0) - 1);
     const d = Math.hypot(t.x - c.x, t.y - c.y) || 1;
