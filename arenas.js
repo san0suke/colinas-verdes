@@ -27,8 +27,8 @@
     barrel: { set: 'dungeon', idx: 44, tw: 1, th: 1, block: true },
     crates: { set: 'dungeon', idx: 67, tw: 3, th: 2, block: true },
     crate:  { set: 'dungeon', idx: 68, tw: 1, th: 1, block: true },
-    lamp:   { set: 'dungeon', idx: 39, tw: 1, th: 2, block: true },
-    lamp2:  { set: 'dungeon', idx: 46, tw: 1, th: 2, block: true },
+    lamp:   { set: 'dungeon', idx: 39, tw: 1, th: 2, block: true, base: 1 },
+    lamp2:  { set: 'dungeon', idx: 46, tw: 1, th: 2, block: true, base: 1 },
     fence3: { set: 'dungeon', idx: 78, tw: 3, th: 1, block: true },
     bridgeV:{ set: 'dungeon', idx: 77, tw: 2, th: 2, over: true, walk: true }, // ponte vertical (2×2): caminhável, desenhada por cima da água
     post:   { set: 'fences', idx: 12, tw: 1, th: 1, block: true },
@@ -53,12 +53,12 @@
     tuft2:  { set: 'obj', kind: 'tuft', idx: 9, tw: 1, th: 1, deco: true },
     flower: { set: 'obj', kind: 'flower', idx: 7, tw: 1, th: 1, deco: true },
     // deserto
-    cactus: { set: 'obj', kind: 'bush', idx: 5, tw: 1, th: 2, block: true },
-    cactus2:{ set: 'obj', kind: 'bush', idx: 6, tw: 1, th: 2, block: true },
-    cactus3:{ set: 'obj', kind: 'bush', idx: 8, tw: 1, th: 2, block: true },
+    cactus: { set: 'obj', kind: 'bush', idx: 5, tw: 1, th: 2, block: true, base: 1 },
+    cactus2:{ set: 'obj', kind: 'bush', idx: 6, tw: 1, th: 2, block: true, base: 1 },
+    cactus3:{ set: 'obj', kind: 'bush', idx: 8, tw: 1, th: 2, block: true, base: 1 },
     palm:   { set: 'obj', kind: 'tree', idx: 14, tw: 2, th: 2, block: true },
     palm2:  { set: 'obj', kind: 'tree', idx: 18, tw: 2, th: 2, block: true },
-    rockD:  { set: 'obj', kind: 'rock', idx: 2, tw: 1, th: 2, block: true },
+    rockD:  { set: 'obj', kind: 'rock', idx: 2, tw: 1, th: 2, block: true, base: 1 },
     rockD2: { set: 'obj', kind: 'rock', idx: 4, tw: 2, th: 1, block: true },
     rockD3: { set: 'obj', kind: 'rock', idx: 0, tw: 2, th: 1, block: true },
     mesa:   { set: 'cliffs', idx: 1, tw: 3, th: 3, block: true },
@@ -76,8 +76,8 @@
     tuftB:  { set: 'obj', kind: 'tuft', idx: 1, tw: 1, th: 1, deco: true },
     bushB2: { set: 'obj', kind: 'bush', idx: 13, tw: 1, th: 1, block: true },
     // masmorra
-    statueA:{ set: 'dungeon', idx: 30, tw: 1, th: 2, block: true },
-    statueB:{ set: 'dungeon', idx: 31, tw: 1, th: 2, block: true },
+    statueA:{ set: 'dungeon', idx: 30, tw: 1, th: 2, block: true, base: 1 },
+    statueB:{ set: 'dungeon', idx: 31, tw: 1, th: 2, block: true, base: 1 },
     demon:  { set: 'dungeon', idx: 74, tw: 2, th: 2, block: true },
     gargoyle:{ set: 'dungeon', idx: 83, tw: 2, th: 2, block: true },
     pillar: { set: 'dungeon', idx: 76, tw: 2, th: 2, block: true },
@@ -92,7 +92,7 @@
     grate:  { set: 'dungeon', idx: 63, tw: 3, th: 3, deco: true },
     plates: { set: 'dungeon', idx: 65, tw: 3, th: 1, block: true },
     torii:  { set: 'dungeon', idx: 64, tw: 3, th: 2, block: true },
-    torch:  { set: 'dungeon', idx: 39, tw: 1, th: 2, block: true },
+    torch:  { set: 'dungeon', idx: 39, tw: 1, th: 2, block: true, base: 1 },
   };
 
   // ---------- as 5 arenas (26×16) ----------
@@ -260,13 +260,14 @@ kkkkkkkkkkkkkkkkkkkkkkkkkk`),
   function build(i) {
     const a = ARENAS[((i % ARENAS.length) + ARENAS.length) % ARENAS.length];
     const ground = a.ground; const rowsN = ground.length, cols = ground[0].length;
-    const blocked = ground.map((row) => row.split('').map((ch) => (ch === 'f' || ch === 'k' || ch === 'W') ? 1 : 0));
+    const blocked = ground.map((row) => row.split('').map((ch) => (ch === 'w' || ch === 'f' || ch === 'k' || ch === 'W') ? 1 : 0));
     const objects = [];
     for (const o of a.objects) {
       const def = K[o.k]; if (!def) continue;
       const tw = def.tw || 1, th = def.th || 1;
       objects.push({ key: o.k, tx: o.tx, ty: o.ty, tw, th, deco: !!def.deco, over: !!def.over });
-      if (def.block) for (let y = o.ty; y < o.ty + th; y++) for (let x = o.tx; x < o.tx + tw; x++) if (y >= 0 && x >= 0 && y < rowsN && x < cols) blocked[y][x] = 1;
+      // base: só as linhas de baixo colidem (objetos altos e finos)
+      if (def.block) for (let y = o.ty + th - (def.base || th); y < o.ty + th; y++) for (let x = o.tx; x < o.tx + tw; x++) if (y >= 0 && x >= 0 && y < rowsN && x < cols) blocked[y][x] = 1;
     }
     for (const o of a.objects) { const def = K[o.k]; if (!def || !def.walk) continue; for (let y = o.ty; y < o.ty + (def.th || 1); y++) for (let x = o.tx; x < o.tx + (def.tw || 1); x++) if (y >= 0 && x >= 0 && y < rowsN && x < cols) blocked[y][x] = 0; } // pontes: caminháveis
     // nascimentos: tiles livres afastados (≥ 5 tiles), determinístico
