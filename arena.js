@@ -92,11 +92,33 @@ const Arena = (() => {
     for (const f of floats) { const k = f.t / 1.6, sx = Math.round(f.who.x - camera.x), sy = Math.round(f.who.y - camera.y) - 110 - k * 50; ctx.globalAlpha = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4; ctx.fillStyle = f.color; ctx.strokeText(f.text, sx, sy); ctx.fillText(f.text, sx, sy); }
     ctx.restore();
   }
+  const ICE_RADIUS = 260; // mesmo raio do servidor
+  const blizzards = []; // nevascas: { x, y, t (restante), dur, seed }
   function freeze(m) {
-    const ids = m.ids || [];
-    if (ids.includes(player.id)) { frozenT = leftOf(m.until); play('shield'); }
-    for (const id of ids) { const r = remote.get(id); if (r) r.frozenT = leftOf(m.until); }
+    const ids = m.ids || [], left = leftOf(m.until);
+    if (ids.includes(player.id)) { frozenT = left; play('shield'); }
+    for (const id of ids) { const r = remote.get(id); if (r) r.frozenT = left; }
     puffs.push({ x: +m.x, y: +m.y - 22, kind: 'ice', t: 0 });
+    blizzards.push({ x: +m.x, y: +m.y - 22, t: left, dur: Math.max(left, 0.1), seed: Math.random() * 1000 });
+  }
+  function updateBlizzards(dt) { for (let i = blizzards.length - 1; i >= 0; i--) { blizzards[i].t -= dt; if (blizzards[i].t <= 0) blizzards.splice(i, 1); } }
+  // nevasca: área gelada com flocos caindo e vento, some aos poucos no fim
+  function drawBlizzard(b, time) {
+    const sx = Math.round(b.x - camera.x), sy = Math.round(b.y - camera.y), R = ICE_RADIUS, fade = Math.min(1, b.t / 0.35), grow = Math.min(1, (b.dur - b.t) / 0.15 + 0.2);
+    ctx.save(); ctx.globalAlpha = fade;
+    ctx.beginPath(); ctx.arc(sx, sy, R * grow, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = 'rgba(190,235,255,.28)'; ctx.fillRect(sx - R, sy - R, R * 2, R * 2);
+    // flocos: posição determinística por índice + tempo (caem e derivam com o vento)
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 90; i++) {
+      const h = (Math.sin(i * 12.9898 + b.seed) * 43758.5453) % 1, h2 = (Math.sin(i * 78.233 + b.seed) * 12345.678) % 1;
+      const speed = 140 + Math.abs(h) * 160, px = sx - R + ((Math.abs(h2) * R * 2 + time * (60 + Math.abs(h) * 80)) % (R * 2)), py = sy - R + ((Math.abs(h) * R * 2 + time * speed) % (R * 2));
+      const r = 1.5 + Math.abs(h2) * 2.2; ctx.globalAlpha = fade * (0.5 + Math.abs(h) * 0.5);
+      ctx.beginPath(); ctx.arc(px + Math.sin(time * 6 + i) * 4, py, r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha = fade * 0.8; ctx.strokeStyle = '#bff2ff'; ctx.lineWidth = 3; ctx.setLineDash([10, 8]); ctx.lineDashOffset = -time * 40;
+    ctx.beginPath(); ctx.arc(sx, sy, R * grow, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
   function pullFrom(m) { if (m.by !== player.id && player.alive) pull = { x: +m.x, y: +m.y, t: leftOf(m.until) }; puffs.push({ x: +m.x, y: +m.y - 22, kind: 'magic', t: 0 }); }
   function shieldBreak(m) { if (m.id === player.id) { player.shield = false; play('shield'); } else { const r = remote.get(m.id); if (r) r.shield = false; } const q = m.id === player.id ? player : remote.get(m.id); if (q) puffs.push({ x: q.x, y: q.y - 22, kind: 'ice', t: 0 }); }
@@ -295,7 +317,7 @@ const Arena = (() => {
       const kind = weaponKind(player.hero) || 'magic'; while (shots.length < 4) spawnShot(player.x + 60 + shots.length * 70, player.y - 22, 1, 0, kind, false); for (const s of shots) s.t = 0.1;
       if (!puffs.length) puffs.push({ x: player.x + 350, y: player.y - 22, kind, t: 0.1 }); puffs[0].t = 0.1;
     }
-    for (const k in eff) eff[k] = Math.max(0, eff[k] - dt); frozenT = Math.max(0, frozenT - dt); updateFloats(dt);
+    for (const k in eff) eff[k] = Math.max(0, eff[k] - dt); frozenT = Math.max(0, frozenT - dt); updateFloats(dt); updateBlizzards(dt);
     const active = now >= 0 && !frozen && player.alive && frozenT <= 0;
     const a = active ? axis() : { x: 0, y: 0 };
     let vx = a.x, vy = a.y;
@@ -433,6 +455,7 @@ const Arena = (() => {
     for (const it of items) it.draw();
     for (const s of shots) drawShot(s);
     for (const p of puffs) drawPuff(p);
+    for (const b of blizzards) drawBlizzard(b, t);
     drawFloats();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     // HUD: corações grandes
@@ -473,7 +496,7 @@ const Arena = (() => {
     rectCache.clear();
     prerenderGround();
     remote.clear(); hitSent.clear(); shots.length = 0; puffs.length = 0;
-    powers.clear(); pickupAsked.clear(); for (const k in eff) eff[k] = 0; frozenT = 0; pull = null; player.shield = false;
+    powers.clear(); pickupAsked.clear(); blizzards.length = 0; for (const k in eff) eff[k] = 0; frozenT = 0; pull = null; player.shield = false;
     for (const p of opts.powers || []) addPower(p);
     autoFire = !!opts.autoFire;
     clockOffset = Number.isFinite(opts.clockOffset) ? opts.clockOffset : opts.serverNow - Date.now();
@@ -483,7 +506,7 @@ const Arena = (() => {
     const sp = opts.spawn || level.spawns[0];
     Object.assign(player, { id: opts.id || '', x: sp.x * S, y: sp.y * S, vx: 0, vy: 0, facing: 1, hp: opts.hp == null ? MAX_HP : opts.hp, alive: opts.alive !== false, attackT: -1, cd: 0, invuln: 0, hurtT: 0, kx: 0, ky: 0, hero: opts.hero ? Hero.decode(opts.hero) : null, nick: opts.nick || '', animTime: 0, dashT: 0, dashCd: 0, dashDx: 1, dashDy: 0 });
     camera.x = Math.max(0, Math.min(level.width * S - W, player.x - W / 2)); camera.y = Math.max(0, Math.min(level.height * S - H, player.y - H / 2));
-    if (opts.demoPowers) { eff.fury = 8; eff.boots = 8; floats.length = 0; floatText(player, POWER_TEXT.fury, POWER_COLOR.fury); bigBurst(player.x, player.y - 24, POWER_COLOR.fury); }
+    if (opts.demoPowers) { blizzards.push({ x: player.x + 420, y: player.y + 120, t: 60, dur: 60, seed: 1 }); eff.fury = 8; eff.boots = 8; floats.length = 0; floatText(player, POWER_TEXT.fury, POWER_COLOR.fury); bigBurst(player.x, player.y - 24, POWER_COLOR.fury); }
     if (opts.demoPowers) ['heart', 'shield', 'fury', 'triple', 'ice', 'boots', 'invis', 'magnet'].forEach((kind, i) => addPower({ id: 900 + i, kind, x: player.x + 90 + i * 70, y: player.y + 20, until: 0 }));
     frozen = false; lastSent = ''; lastTick = 99;
     if (hooks.onState) { const s = { x: Math.round(player.x), y: Math.round(player.y), f: player.facing, a: player.alive ? 'i' : 'd' }; lastSent = `${s.x},${s.y},${s.f},${s.a}`; hooks.onState(s); }
